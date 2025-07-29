@@ -257,7 +257,7 @@
                 <h2 class="text-xl font-bold text-white mb-1">Medium(Level 3):</h3>
                     <p class="text-md mb-1">The AI thinks 3 moves ahead using minimax algorithm with alpha-beta pruning,
                         but occasionally
-                        makes a random move 5% of
+                        makes a random move 10% of
                         the time. It actively looks for fork opportunities and can execute complex tactical sequences.
                         This level will pose a challenge for most players.
                     </p>
@@ -267,7 +267,7 @@
                         occasional openings, but
                         expect mostly strong strategic play. Build connected formations and create subtle threats that
                         develop over multiple moves.
-                        There is a chance the AI will make a mistake, but it's only 5%, which is not vey reliable.
+                        There is a chance the AI will make a mistake, but it's 10%, so not as reliable.
                     </p>
             </div>
 
@@ -278,29 +278,34 @@
                         prioritizes center control,
                         piece connectivity, and can execute complex multi-move strategies. The AI considers move
                         ordering and positional
-                        advantages.</p>
-                    <h3 class="text-lg font-bold text-white mb-1">Strategy: (Lose with dignity)</h3>
+                        advantages. Has a 5% chance of making a random move.</p>
+                    <h3 class="text-lg font-bold text-white mb-1">Strategy: (Pray)</h3>
                     <p class="text-md mb-1">Play patient, positional games focusing on board control rather than quick
                         attacks. Build strong
                         formations in the
                         center, maintain piece connectivity, and look for very subtle long-term advantages. Expect the
                         AI to find and counter
-                        pretty much all your tactical threats. So lose, but with dignity.</p>
+                        pretty much all your tactical threats. Pray for the 5% chance of a mistake. Otherwise lose, but with dignity.</p>
+            </div>
+
+            <div class="very-hard-info mb-8">
+                <h2 class="text-xl font-bold text-white mb-1">Very Hard(Level 5):</h3>
+                    <p class="text-md mb-1">Same as Hard, but no random moves.</p>
+                    <h3 class="text-lg font-bold text-white mb-1">Strategy: (Lose with dignity)</h3>
+                    <p class="text-md mb-1">Same strategy as Hard. But there will be no random moves. So lose, but with dignity.</p>
             </div>
 
             <ul>
                 <li>
+                    <h3 class="text-md text-white mb-2"> <sup>*</sup> Connect 4 game is a <span
+                            style="text-decoration: underline;">solved problem</span> (like the Rubik's cube).
+                        Which means there is an algorithm that can beat the AI. But the first four levels all
+                        involve some randomness. So, the same set of moves will not always work.</h3>
+                </li>
+                <li>
                     <h3 class="text-md font-bold text-white mb-1"> <sup>*</sup> Visit <a style="text-decoration: underline;"
                             href="http://blog.gamesolver.org/">Solving Connect 4: how to build a perfect AI</a>
                         for a detailed study of the AI algorithms.</h3>
-                </li>
-                <li>
-                    <h3 class="text-md font-bold text-white mb-1"> <sup>*</sup> Connect 4 game is a <span
-                            style="text-decoration: underline;">solved problem</span> (like the Rubik's cube).
-                        On a 7x6 board, The first player can always win with the perfect moves, and on a 8x8 board, the second player
-                        can
-                        always win with the perfect moves.
-                        Which means that even the hardest AI level can be beaten!!</h3>
                 </li>
             </ul>          
         </div>
