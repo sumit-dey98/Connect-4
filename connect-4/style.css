@@ -986,8 +986,20 @@ button#close-com-info-btn:hover {
     flex-direction: column-reverse;
     row-gap: 1rem;
   }
+  .main-container div:has(.player-status-section) {
+    justify-content: center;
+    margin-bottom: 0.5rem;
+  }
+  #game-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
   #game-info>p {
     box-sizing: border-box;
+  }
+  #timer-display {
+    margin: 0;
   }
   #game-controls {
     justify-content: space-between;
