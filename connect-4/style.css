@@ -850,6 +850,10 @@ button#start-game-btn-mobile {
 }
 .modal-content, aside, button, select, input, #game-info {
   transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+  cursor: pointer;
+}
+input {
+  cursor: text;
 }
 .main-container {
   max-width: 1400px;
@@ -990,8 +994,8 @@ button#close-com-info-btn:hover {
     display: grid;
     grid-template-columns: repeat(6, 1fr);
     grid-template-areas: "color-dropdown name name name name name";
-    gap: 1rem;
-    margin-bottom: 0;
+/*     gap: 1rem;
+    margin-bottom: 0; */
   }
   #player-colors-container .color-dropdown {
     grid-area: color-dropdown;
