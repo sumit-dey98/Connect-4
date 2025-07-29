@@ -1251,7 +1251,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const validCols = getValidMoves();
         if (validCols.length === 0) return -1;
 
-        if (Math.random() < 0.2) {
+        if (Math.random() < 0.3) {
             return validCols[Math.floor(Math.random() * validCols.length)];
         }
 
