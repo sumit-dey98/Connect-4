@@ -15,7 +15,10 @@ document.addEventListener('DOMContentLoaded', () => {
         boardVisualLayer: document.getElementById('board-visual-layer'),
 
         lightModeBtn: document.getElementById('light-mode-btn'),
+        lightModeCheck: document.getElementById('light-mode-check'),
         darkModeBtn: document.getElementById('dark-mode-btn'),
+        darkModeCheck: document.getElementById('dark-mode-check'),
+        
         boardColorSelect: document.getElementById('board-color'),
         gameModeSelect: document.getElementById('game-mode'),
         timedOptions: document.getElementById('timed-options'),
@@ -176,9 +179,14 @@ document.addEventListener('DOMContentLoaded', () => {
     function setupEventListeners() {
         elements.lightModeBtn.addEventListener('click', () => {
             document.body.className = 'light bg-[var(--background)] text-[var(--text)]';
+            elements.lightModeCheck.classList.remove('hidden');
+            elements.darkModeCheck.classList.add('hidden');
+            
         });
         elements.darkModeBtn.addEventListener('click', () => {
             document.body.className = 'dark bg-[var(--background)] text-[var(--text)]';
+            elements.lightModeCheck.classList.add('hidden');
+            elements.darkModeCheck.classList.remove('hidden');
         });
 
         elements.boardColorSelect.addEventListener('change', (e) => {
