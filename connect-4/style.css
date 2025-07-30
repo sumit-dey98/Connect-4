@@ -1161,3 +1161,6 @@ button#close-com-info-btn:hover {
 .hidden {
   display: none;
 }
+#com-info-modal h3, #com-info-modal .strategy {
+  display: none;
+}
