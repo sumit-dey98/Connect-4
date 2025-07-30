@@ -47,6 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         enableShadowCheckbox: document.getElementById('enable-shadow'),
         enableSoundCheckbox: document.getElementById('enable-sound'),
+        enableDiscDesignCheckbox: document.getElementById('enable-disc-design'),
 
         discDropSound: document.getElementById('disc-drop-sound'),
         winSound: document.getElementById('win-sound'),
@@ -175,6 +176,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setupEventListeners();
         updateShadowSettings();
         updateAudioSettings();
+        updateDiscDesignSettings();
         startGame();
     }
 
@@ -244,6 +246,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         elements.enableShadowCheckbox.addEventListener('change', updateShadowSettings);
+        elements.enableDiscDesignCheckbox.addEventListener('change', updateDiscDesignSettings);
         elements.enableSoundCheckbox.addEventListener('change', updateAudioSettings);
 
         const buttonsWithSound = [
@@ -537,6 +540,15 @@ document.addEventListener('DOMContentLoaded', () => {
             document.body.classList.add('shadow-toggle');
         } else {
             document.body.classList.remove('shadow-toggle');
+        }
+    }
+
+    function updateDiscDesignSettings() {
+        const discDesignEnabled = elements.enableDiscDesignCheckbox.checked;
+        if (!discDesignEnabled) {
+            document.documentElement.style.setProperty('--after-display', 'none');
+        } else {
+            document.documentElement.style.setProperty('--after-display', 'block');
         }
     }
 
