@@ -111,13 +111,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const cols = parseInt(elements.boardColsInput.value);
         const winCondition = parseInt(elements.winConditionInput.value);
 
-        if (rows < 4 || rows > 15 || cols < 4 || cols > 15) {
-            alert('Board dimensions must be between 4 and 15');
+        if (rows < 5 || rows > 10 || cols < 5 || cols > 10) {
+            alert('Board dimensions must be between 5 and 10');
             return false;
         }
 
-        if (winCondition < 3 || winCondition > Math.min(rows, cols)) {
-            alert(`Win condition must be between 3 and ${Math.min(rows, cols)} (the smallest board dimension)`);
+        if (winCondition < 3 || winCondition > 6) {
+            alert(`No of discs to must be set between 3 and 6`);
             return false;
         }
         return true;
