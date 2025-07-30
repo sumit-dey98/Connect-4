@@ -787,6 +787,9 @@ button#start-game-btn-mobile {
   inset: 0;
   z-index: 1;
 }
+#col-no-display {
+  background: rgba(0,0,0,0.2);
+}
 .color-dropdown {
   position: relative;
   display: inline-block;
