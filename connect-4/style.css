@@ -652,6 +652,7 @@
   --background-dark: #1f2937;
   --text-dark: #f3f4f6;
   --board-bg-dark: #374151;
+  --after-display: block;
 }
 html {
   scrollbar-gutter: stable;
@@ -695,6 +696,7 @@ button#start-game-btn-mobile {
   justify-content: center;
 }
 .disc::after {
+  display: var(--after-display);
   content: ' ';
   position: absolute;
   width: 90%;
