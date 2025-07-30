@@ -45,6 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
         playAgainBtn: document.getElementById('play-again-btn'),
         closeModalBtn: document.getElementById('close-modal-btn'),
 
+        enableShadowCheckbox: document.getElementById('enable-shadow'),
         enableSoundCheckbox: document.getElementById('enable-sound'),
 
         discDropSound: document.getElementById('disc-drop-sound'),
@@ -172,6 +173,7 @@ document.addEventListener('DOMContentLoaded', () => {
         gameState = getDefaultGameState();
         updatePlayerInputs();
         setupEventListeners();
+        updateShadowSettings();
         updateAudioSettings();
         startGame();
     }
@@ -241,6 +243,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
+        elements.enableShadowCheckbox.addEventListener('change', updateShadowSettings);
         elements.enableSoundCheckbox.addEventListener('change', updateAudioSettings);
 
         const buttonsWithSound = [
@@ -526,6 +529,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (elements.buttonClickSound) elements.buttonClickSound.volume = volume;
         if (elements.columnHoverSound) elements.columnHoverSound.volume = volume;
         if (elements.errorSound) elements.errorSound.volume = volume;
+    }
+
+    function updateShadowSettings() {
+        const shadowEnabled = elements.enableShadowCheckbox.checked;
+        if (!shadowEnabled) {
+            document.body.classList.add('shadow-toggle');
+        } else {
+            document.body.classList.remove('shadow-toggle');
+        }
     }
 
     function startGame() {
@@ -846,52 +858,65 @@ document.addEventListener('DOMContentLoaded', () => {
             targetTop = boardPaddingTop + targetRow * (cellHeight + gap);
         }
 
-
         const finalCellCenterTop = offsetTop + boardPaddingTop + targetRow * (cellHeight + gap) + cellHeight / 2;
 
         const fallDistance = targetTop + (discSize * 2);
         let fallTime = Math.min(600, Math.max(300, Math.abs(fallDistance) * 1.0));
-        if(window.innerWidth < 576) {
+        if (window.innerWidth < 576) {
             fallTime *= 1.75;
         }
 
         fallingDisc.style.transition = `transform ${fallTime}ms cubic-bezier(0.25, 0.46, 0.45, 0.94)`;
-
         fallingDisc.style.boxShadow = '0 8px 20px rgba(0,0,0,0.5), inset 0 0px 8px rgba(255, 255, 255, 0.3)';
 
         requestAnimationFrame(() => {
             fallingDisc.style.transform = `translate(-50%, ${targetTop}px)`;
         });
 
+        const bounceEnabled = document.getElementById('enable-bounce').checked;
+
         setTimeout(() => {
             playSound(elements.discDropSound, 0.6);
 
-            fallingDisc.style.transition = 'transform 120ms ease-out';
-            fallingDisc.style.transform = `translate(-50%, ${targetTop - (targetTop * 0.005)}px)`;
-
-            setTimeout(() => {
-                fallingDisc.style.transition = 'transform 80ms ease-in';
-                fallingDisc.style.transform = `translate(-50%, ${targetTop}px)`;
+            if (bounceEnabled) {
+                fallingDisc.style.transition = 'transform 120ms ease-out';
+                fallingDisc.style.transform = `translate(-50%, ${targetTop - (targetTop * 0.005)}px)`;
 
                 setTimeout(() => {
-                    fallingDisc.style.boxShadow = 'inset 0 0px 8px rgba(255, 255, 255, 0.5), inset 0px 0px 15px rgba(0, 0, 0, 0.3)';
-
-                    fallingDisc.style.transition = 'transform 200ms ease-out, opacity 150ms ease-out';
-                    fallingDisc.style.transform = `translate(-50%, calc(${finalCellCenterTop}px - 50% - 0px))`;
-
+                    fallingDisc.style.transition = 'transform 80ms ease-in';
+                    fallingDisc.style.transform = `translate(-50%, ${targetTop}px)`;
 
                     setTimeout(() => {
-                        fallingDisc.style.opacity = '0';
-
-                        callback();
+                        fallingDisc.style.boxShadow = 'inset 0 0px 8px rgba(255, 255, 255, 0.5), inset 0px 0px 15px rgba(0, 0, 0, 0.3)';
+                        fallingDisc.style.transition = 'transform 200ms ease-out, opacity 150ms ease-out';
+                        fallingDisc.style.transform = `translate(-50%, calc(${finalCellCenterTop}px - 50% - 0px))`;
 
                         setTimeout(() => {
-                            fallingDisc.style.willChange = 'auto';
-                            fallingDisc.remove();
-                        }, 150);
-                    }, 200);
-                }, 80);
-            }, 120);
+                            fallingDisc.style.opacity = '0';
+                            callback();
+
+                            setTimeout(() => {
+                                fallingDisc.style.willChange = 'auto';
+                                fallingDisc.remove();
+                            }, 150);
+                        }, 200);
+                    }, 80);
+                }, 120);
+            } else {
+                fallingDisc.style.boxShadow = 'inset 0 0px 8px rgba(255, 255, 255, 0.5), inset 0px 0px 15px rgba(0, 0, 0, 0.3)';
+                fallingDisc.style.transition = 'transform 200ms ease-out, opacity 150ms ease-out';
+                fallingDisc.style.transform = `translate(-50%, calc(${finalCellCenterTop}px - 50% - 0px))`;
+
+                setTimeout(() => {
+                    fallingDisc.style.opacity = '0';
+                    callback();
+
+                    setTimeout(() => {
+                        fallingDisc.style.willChange = 'auto';
+                        fallingDisc.remove();
+                    }, 150);
+                }, 200);
+            }
         }, fallTime);
     }
 
