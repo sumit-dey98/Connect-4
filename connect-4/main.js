@@ -1374,7 +1374,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const validCols = getValidMoves();
         if (validCols.length === 0) return -1;
 
-        if (Math.random() < 0.05) {
+        if (Math.random() < 0.02) {
             return validCols[Math.floor(Math.random() * validCols.length)];
         }
 
@@ -1392,7 +1392,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let bestScore = -Infinity;
         let bestCol = orderedMoves[0];
 
-        const maxDepth = Math.min(4, 42 - getCurrentMoveCount());
+        const maxDepth = Math.min(5, 42 - getCurrentMoveCount());
 
         for (const col of orderedMoves) {
             const row = getNextAvailableRow(col);
@@ -1433,7 +1433,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let bestScore = -Infinity;
         let bestCol = orderedMoves[0];
 
-        const maxDepth = Math.min(4, 42 - getCurrentMoveCount());
+        const maxDepth = Math.min(5, 42 - getCurrentMoveCount());
 
         for (const col of orderedMoves) {
             const row = getNextAvailableRow(col);
