@@ -791,6 +791,8 @@ button#start-game-btn-mobile {
   justify-items: center;
   align-items: center;
   margin-top: -0.5rem;
+  padding-right: 12px;
+  padding-left: 12px;
 }
 #col-no-display h3 {
   background-color: #00000030;
