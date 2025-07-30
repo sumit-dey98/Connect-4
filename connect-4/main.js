@@ -76,7 +76,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 enableDiagonal: true,
                 gameMode: 'classic',
                 timeLimit: 120,
-                turnTimeLimit: 0,
+                turnTimeLimit: 10,
                 turnLimit: 15,
                 playerMode: 'vs_com',
             },
