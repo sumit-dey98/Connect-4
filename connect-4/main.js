@@ -675,8 +675,22 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         highlightWinningCells();
+        colNoDisplay();
     }
 
+    function colNoDisplay() {
+        const colNoContainer = document.getElementById('col-no-display');
+        colNoContainer.innerHTML = '';
+        colNoContainer.classList.add('grid');
+        colNoContainer.style.gridTemplateColumns = `repeat(${gameState.settings.cols}, 1fr)`;
+
+        for (let c = 0; c < gameState.settings.cols; c++) {
+            const colNo = document.createElement('h3');
+            colNo.textContent = `${c + 1}`;
+            colNoContainer.appendChild(colNo);
+        }
+    }
+    
     function highlightColumn(col, highlight) {
         if (gameState.gameOver || gameState.isPaused) return;
         const currentPlayer = gameState.players[gameState.currentPlayerIndex];
