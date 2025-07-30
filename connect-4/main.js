@@ -117,7 +117,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (winCondition < 3 || winCondition > 6) {
-            alert(`No of discs to must be set between 3 and 6`);
+            alert(`Number of discs to must be set between 3 and 6`);
             return false;
         }
         return true;
