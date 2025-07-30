@@ -788,7 +788,19 @@ button#start-game-btn-mobile {
   z-index: 1;
 }
 #col-no-display {
-  background: rgba(0,0,0,0.2);
+  justify-items: center;
+  align-items: center;
+  margin-top: -0.5rem;
+}
+#col-no-display h3 {
+  background-color: #00000030;
+  width: 1.5rem;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  font-size: 14px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 .color-dropdown {
   position: relative;
@@ -1003,6 +1015,9 @@ button#close-com-info-btn:hover {
   }
   #timer-display {
     margin: 0;
+  }
+  #col-no-display h3 {
+    font-size: 18px;
   }
   #game-controls {
     justify-content: space-between;
