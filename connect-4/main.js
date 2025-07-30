@@ -529,15 +529,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         gameState.settings.rows = parseInt(elements.boardRowsInput.value);
         gameState.settings.cols = parseInt(elements.boardColsInput.value);
-
-        if (gameState.settings.rows < 5 || gameState.settings.rows >10
-            || gameState.settings.cols < 5 || gameState.settings.cols < 10
-        ) {
-            alert('Wrong board size selected. Board size set to default (7x6)');
-            gameState.settings.rows = 6;
-            gameState.settings.cols = 7;
-        }
-        
         gameState.settings.winCondition = parseInt(elements.winConditionInput.value);
         gameState.settings.enableDiagonal = elements.enableDiagonalCheckbox.checked;
         gameState.settings.gameMode = elements.gameModeSelect.value;
