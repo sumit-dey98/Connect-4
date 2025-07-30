@@ -1182,3 +1182,6 @@ button#close-com-info-btn:hover {
 #com-info-modal h3, #com-info-modal .strategy {
   display: none;
 }
+.shadow-toggle * {
+  box-shadow: unset !important;
+}
