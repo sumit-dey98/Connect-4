@@ -18,7 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
         lightModeCheck: document.getElementById('light-mode-check'),
         darkModeBtn: document.getElementById('dark-mode-btn'),
         darkModeCheck: document.getElementById('dark-mode-check'),
-
+        
         boardColorSelect: document.getElementById('board-color'),
         gameModeSelect: document.getElementById('game-mode'),
         timedOptions: document.getElementById('timed-options'),
@@ -59,9 +59,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let gameState = {};
     let currentFocusedColumn = 0;
-
-    let aiWorker = null;
-    let workerSupported = false;
 
     function getDefaultGameState() {
         return {
@@ -173,43 +170,14 @@ document.addEventListener('DOMContentLoaded', () => {
         return colors;
     }
 
-    function initializeAI() {
-        if (typeof Worker !== 'undefined') {
-            try {
-                aiWorker = new Worker('ai.js');
-                aiWorker.onmessage = handleAIResponse;
-                aiWorker.onerror = handleAIError;
-                return true;
-            } catch (error) {
-                console.log('Web Worker not supported, using fallback AI');
-                return false;
-            }
-        }
-        return false;
-    }
-
-    function handleAIResponse(e) {
-        const thinking = document.querySelector('.ai-thinking');
-        if (thinking) thinking.remove();
-
-        const { move } = e.data;
-        if (move !== -1 && !gameState.gameOver) {
-            makeMove(move);
-        }
-    }
-
-    function handleAIError(error) {
-        console.error('AI Worker error:', error);
-        const thinking = document.querySelector('.ai-thinking');
-        if (thinking) thinking.remove();
-
-        const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-        setTimeout(() => {
-            const col = getAIMoveSync(currentPlayer.difficulty);
-            if (col !== -1 && !gameState.gameOver) {
-                makeMove(col);
-            }
-        }, 500);
+    function init() {
+        gameState = getDefaultGameState();
+        updatePlayerInputs();
+        setupEventListeners();
+        updateShadowSettings();
+        updateAudioSettings();
+        updateDiscDesignSettings();
+        startGame();
     }
 
     function setupEventListeners() {
@@ -217,13 +185,12 @@ document.addEventListener('DOMContentLoaded', () => {
             document.body.className = 'light bg-[var(--background)] text-[var(--text)]';
             elements.lightModeCheck.classList.remove('hidden');
             elements.darkModeCheck.classList.add('hidden');
-            updateShadowSettings();
+            
         });
         elements.darkModeBtn.addEventListener('click', () => {
             document.body.className = 'dark bg-[var(--background)] text-[var(--text)]';
             elements.lightModeCheck.classList.add('hidden');
             elements.darkModeCheck.classList.remove('hidden');
-            updateShadowSettings();
         });
 
         elements.boardColorSelect.addEventListener('change', (e) => {
@@ -503,7 +470,6 @@ document.addEventListener('DOMContentLoaded', () => {
             elements.aiSettingsContainer.classList.add('hidden');
         }
     }
-
     function getPlayerCount() {
         const mode = elements.playerModeSelect.value;
         switch (mode) {
@@ -584,20 +550,6 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             document.documentElement.style.setProperty('--after-display', 'block');
         }
-    }
-
-    function init() {
-        gameState = getDefaultGameState();
-        updatePlayerInputs();
-        setupEventListeners();
-        updateShadowSettings();
-        updateAudioSettings();
-        updateDiscDesignSettings();
-
-        workerSupported = initializeAI();
-        console.log('AI Loaded:', workerSupported);
-
-        startGame();
     }
 
     function startGame() {
@@ -770,7 +722,7 @@ document.addEventListener('DOMContentLoaded', () => {
             colNoContainer.appendChild(colNo);
         }
     }
-
+    
     function highlightColumn(col, highlight) {
         if (gameState.gameOver || gameState.isPaused) return;
         const currentPlayer = gameState.players[gameState.currentPlayerIndex];
@@ -1034,6 +986,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         return null;
+    }
+
+    function checkFixedTurnEnd() {
+        return gameState.turnsTaken.every(turns => turns >= gameState.settings.turnLimit);
     }
 
     function determineFixedTurnWinner() {
@@ -1307,27 +1263,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function aiMove(difficulty) {
         if (gameState.gameOver) return;
-
-        elements.statusMessage.innerHTML += '&nbsp; <span class="ai-thinking"> &circlearrowright;</span>';
-
-        if (aiWorker && workerSupported) {
-            aiWorker.postMessage({
-                board: gameState.board,
-                settings: gameState.settings,
-                players: gameState.players,
-                currentPlayerIndex: gameState.currentPlayerIndex,
-                difficulty: difficulty
-            });
-        } else {
-            setTimeout(() => {
-                const thinking = document.querySelector('.ai-thinking');
-                if (thinking) thinking.remove();
-
-                const col = getAIMoveSync(difficulty);
-                if (col !== -1 && !gameState.gameOver) {
-                    makeMove(col);
-                }
-            }, 500);
+        let col;
+        switch (difficulty) {
+            case 'very easy':
+                col = getVeryEasyAIMove();
+                break;
+            case 'easy':
+                col = getEasyAIMove();
+                break;
+            case 'medium':
+                col = getMediumAIMove();
+                break;
+            case 'hard':
+                col = getHardAIMove();
+                break;
+            case 'very hard':
+                col = getVeryHardAIMove();
+                break;
+            default:
+                col = getEasyAIMove();
+        }
+        if (col !== -1) {
+            makeMove(col);
         }
     }
 
@@ -1341,25 +1298,22 @@ document.addEventListener('DOMContentLoaded', () => {
         return validCols;
     }
 
-    function getAIMoveSync(difficulty) {
+    function getVeryEasyAIMove() {
+        console.log('AI Level 1 Move Made');
+        const validCols = getValidMoves();
+        return validCols.length > 0 ?
+            validCols[Math.floor(Math.random() * validCols.length)] : -1;
+    }
+
+    function getEasyAIMove() {
+        console.log('AI Level 2 Move Made');
         const validCols = getValidMoves();
         if (validCols.length === 0) return -1;
 
-        switch (difficulty) {
-            case 'very easy':
-                return validCols[Math.floor(Math.random() * validCols.length)];
-            case 'easy':
-            case 'medium':
-                return getSimpleAIMove(validCols, 2);
-            case 'hard':
-            case 'very hard':
-                return getSimpleAIMove(validCols, 3);
-            default:
-                return validCols[Math.floor(Math.random() * validCols.length)];
+        if (Math.random() < 0.3) {
+            return validCols[Math.floor(Math.random() * validCols.length)];
         }
-    }
 
-    function getSimpleAIMove(validCols, maxDepth) {
         const aiId = gameState.players[gameState.currentPlayerIndex].id;
         const opponentId = gameState.players[(gameState.currentPlayerIndex + 1) % gameState.players.length].id;
 
@@ -1383,13 +1337,529 @@ document.addEventListener('DOMContentLoaded', () => {
             gameState.board[row][col] = 0;
         }
 
-        const centerCol = Math.floor(gameState.settings.cols / 2);
-        if (validCols.includes(centerCol)) {
-            return centerCol;
+        let bestScore = -Infinity;
+        let bestCol = validCols[0];
+
+        for (const col of validCols) {
+            const row = getNextAvailableRow(col);
+            gameState.board[row][col] = aiId;
+
+            let score = evaluateBoardAdvanced(aiId) * 2;
+            score += minimax(2, false, -Infinity, Infinity, gameState.currentPlayerIndex);
+
+            gameState.board[row][col] = 0;
+
+            if (score > bestScore) {
+                bestScore = score;
+                bestCol = col;
+            }
         }
-        return validCols[Math.floor(Math.random() * validCols.length)];
+
+        return bestCol;
     }
 
+    function getMediumAIMove() {
+        console.log('AI Level 3 Move Made');
+        const validCols = getValidMoves();
+        if (validCols.length === 0) return -1;
+
+        if (Math.random() < 0.1) {
+            return validCols[Math.floor(Math.random() * validCols.length)];
+        }
+
+        const aiId = gameState.players[gameState.currentPlayerIndex].id;
+        const opponentId = gameState.players[(gameState.currentPlayerIndex + 1) % gameState.players.length].id;
+
+        for (const col of validCols) {
+            const row = getNextAvailableRow(col);
+            gameState.board[row][col] = aiId;
+            if (checkWin(row, col)) {
+                gameState.board[row][col] = 0;
+                return col;
+            }
+            gameState.board[row][col] = 0;
+        }
+
+        for (const col of validCols) {
+            const row = getNextAvailableRow(col);
+            gameState.board[row][col] = opponentId;
+            if (checkWin(row, col)) {
+                gameState.board[row][col] = 0;
+                return col;
+            }
+            gameState.board[row][col] = 0;
+        }
+
+        const blockForkMove = findForkOpportunity(opponentId, validCols);
+        if (blockForkMove !== -1) return blockForkMove;
+
+        let bestScore = -Infinity;
+        let bestCol = validCols[0];
+
+        for (const col of validCols) {
+            const row = getNextAvailableRow(col);
+            gameState.board[row][col] = aiId;
+
+            let score = evaluateBoardAdvanced(aiId) * 2;
+            score += minimax(3, false, -Infinity, Infinity, gameState.currentPlayerIndex);
+
+            gameState.board[row][col] = 0;
+
+            if (score > bestScore) {
+                bestScore = score;
+                bestCol = col;
+            }
+        }
+
+        return bestCol;
+    }
+
+    function getHardAIMove() {
+        console.log('AI Level 4 Move Made');
+        const validCols = getValidMoves();
+        if (validCols.length === 0) return -1;
+
+        if (Math.random() < 0.02) {
+            return validCols[Math.floor(Math.random() * validCols.length)];
+        }
+
+        const aiId = gameState.players[gameState.currentPlayerIndex].id;
+        const opponentId = gameState.players[(gameState.currentPlayerIndex + 1) % gameState.players.length].id;
+
+        const immediateWin = findImmediateWin(aiId, validCols);
+        if (immediateWin !== -1) return immediateWin;
+
+        const blockWin = findImmediateWin(opponentId, validCols);
+        if (blockWin !== -1) return blockWin;
+
+        const orderedMoves = orderMoves(validCols, aiId);
+
+        let bestScore = -Infinity;
+        let bestCol = orderedMoves[0];
+
+        const maxDepth = Math.min(5, 42 - getCurrentMoveCount());
+
+        for (const col of orderedMoves) {
+            const row = getNextAvailableRow(col);
+            if (row === -1) continue;
+
+            gameState.board[row][col] = aiId;
+
+            const score = minimaxAdvanced(maxDepth, false, -Infinity, Infinity,
+                gameState.currentPlayerIndex, col);
+
+            gameState.board[row][col] = 0;
+
+            if (score > bestScore) {
+                bestScore = score;
+                bestCol = col;
+            }
+        }
+
+        return bestCol;
+    }
+
+    function getVeryHardAIMove() {
+        console.log('AI Level 5 Move Made');
+        const validCols = getValidMoves();
+        if (validCols.length === 0) return -1;
+
+        const aiId = gameState.players[gameState.currentPlayerIndex].id;
+        const opponentId = gameState.players[(gameState.currentPlayerIndex + 1) % gameState.players.length].id;
+
+        const immediateWin = findImmediateWin(aiId, validCols);
+        if (immediateWin !== -1) return immediateWin;
+
+        const blockWin = findImmediateWin(opponentId, validCols);
+        if (blockWin !== -1) return blockWin;
+
+        const orderedMoves = orderMoves(validCols, aiId);
+
+        let bestScore = -Infinity;
+        let bestCol = orderedMoves[0];
+
+        const maxDepth = Math.min(5, 42 - getCurrentMoveCount());
+
+        for (const col of orderedMoves) {
+            const row = getNextAvailableRow(col);
+            if (row === -1) continue;
+
+            gameState.board[row][col] = aiId;
+
+            const score = minimaxAdvanced(maxDepth, false, -Infinity, Infinity,
+                gameState.currentPlayerIndex, col);
+
+            gameState.board[row][col] = 0;
+
+            if (score > bestScore) {
+                bestScore = score;
+                bestCol = col;
+            }
+        }
+
+        return bestCol;
+    }
+
+    function minimaxAdvanced(depth, isMaximizing, alpha, beta, originalAI, lastMove = -1) {
+        const winnerInfo = checkForTerminalState();
+
+        if (depth === 0 || winnerInfo.isTerminal) {
+            if (winnerInfo.isTerminal) {
+                if (winnerInfo.winner === null) return 0;
+                if (winnerInfo.winner === originalAI) return 100000 + depth;
+                return -100000 - depth;
+            }
+            return evaluateBoardAdvanced(gameState.players[originalAI].id);
+        }
+
+        const validCols = getValidMoves();
+        const currentPlayerId = gameState.players[gameState.currentPlayerIndex].id;
+
+        const orderedCols = orderMoves(validCols, currentPlayerId, lastMove);
+
+        if (isMaximizing) {
+            let maxScore = -Infinity;
+            for (const col of orderedCols) {
+                const row = getNextAvailableRow(col);
+                gameState.board[row][col] = currentPlayerId;
+
+                const nextPlayer = (gameState.currentPlayerIndex + 1) % gameState.players.length;
+                const originalPlayer = gameState.currentPlayerIndex;
+                gameState.currentPlayerIndex = nextPlayer;
+
+                const score = minimaxAdvanced(depth - 1, originalAI === nextPlayer,
+                    alpha, beta, originalAI, col);
+
+                gameState.currentPlayerIndex = originalPlayer;
+                gameState.board[row][col] = 0;
+
+                maxScore = Math.max(maxScore, score);
+                alpha = Math.max(alpha, score);
+                if (beta <= alpha) break;
+            }
+            return maxScore;
+        } else {
+            let minScore = Infinity;
+            for (const col of orderedCols) {
+                const row = getNextAvailableRow(col);
+                gameState.board[row][col] = currentPlayerId;
+
+                const nextPlayer = (gameState.currentPlayerIndex + 1) % gameState.players.length;
+                const originalPlayer = gameState.currentPlayerIndex;
+                gameState.currentPlayerIndex = nextPlayer;
+
+                const score = minimaxAdvanced(depth - 1, originalAI === nextPlayer,
+                    alpha, beta, originalAI, col);
+
+                gameState.currentPlayerIndex = originalPlayer;
+                gameState.board[row][col] = 0;
+
+                minScore = Math.min(minScore, score);
+                beta = Math.min(beta, score);
+                if (beta <= alpha) break;
+            }
+            return minScore;
+        }
+    }
+
+    function findImmediateWin(playerId, validCols) {
+        for (const col of validCols) {
+            const row = getNextAvailableRow(col);
+            gameState.board[row][col] = playerId;
+            if (checkWin(row, col)) {
+                gameState.board[row][col] = 0;
+                return col;
+            }
+            gameState.board[row][col] = 0;
+        }
+        return -1;
+    }
+
+    function findForkOpportunity(playerId, validCols) {
+        for (const col of validCols) {
+            const row = getNextAvailableRow(col);
+            gameState.board[row][col] = playerId;
+
+            let threats = 0;
+            for (const testCol of validCols) {
+                if (testCol === col) continue;
+                const testRow = getNextAvailableRow(testCol);
+                if (testRow === -1) continue;
+
+                gameState.board[testRow][testCol] = playerId;
+                if (checkWin(testRow, testCol)) {
+                    threats++;
+                }
+                gameState.board[testRow][testCol] = 0;
+            }
+
+            gameState.board[row][col] = 0;
+
+            if (threats >= 2) return col;
+        }
+        return -1;
+    }
+
+    function orderMoves(validCols, playerId, lastMove = -1) {
+        const cols = gameState.settings.cols;
+        const center = Math.floor(cols / 2);
+
+        return validCols.sort((a, b) => {
+            let scoreA = 0, scoreB = 0;
+
+            scoreA += Math.max(0, 3 - Math.abs(a - center));
+            scoreB += Math.max(0, 3 - Math.abs(b - center));
+
+            if (lastMove !== -1) {
+                scoreA += Math.max(0, 2 - Math.abs(a - lastMove));
+                scoreB += Math.max(0, 2 - Math.abs(b - lastMove));
+            }
+
+            const rowA = getNextAvailableRow(a);
+            const rowB = getNextAvailableRow(b);
+
+            if (rowA !== -1) {
+                gameState.board[rowA][a] = playerId;
+                scoreA += quickEvaluatePosition(rowA, a, playerId);
+                gameState.board[rowA][a] = 0;
+            }
+
+            if (rowB !== -1) {
+                gameState.board[rowB][b] = playerId;
+                scoreB += quickEvaluatePosition(rowB, b, playerId);
+                gameState.board[rowB][b] = 0;
+            }
+
+            return scoreB - scoreA;
+        });
+    }
+
+    function quickEvaluatePosition(row, col, playerId) {
+        let score = 0;
+        const winCondition = gameState.settings.winCondition;
+
+        let left = 0, right = 0;
+        for (let c = col - 1; c >= 0 && gameState.board[row][c] === playerId; c--) left++;
+        for (let c = col + 1; c < gameState.settings.cols && gameState.board[row][c] === playerId; c++) right++;
+        if (left + right + 1 >= winCondition) score += 50;
+
+        let down = 0;
+        for (let r = row + 1; r < gameState.settings.rows && gameState.board[r][col] === playerId; r++) down++;
+        if (down + 1 >= winCondition) score += 50;
+
+        return score;
+    }
+
+    function getCurrentMoveCount() {
+        let count = 0;
+        for (let r = 0; r < gameState.settings.rows; r++) {
+            for (let c = 0; c < gameState.settings.cols; c++) {
+                if (gameState.board[r][c] !== 0) count++;
+            }
+        }
+        return count;
+    }
+
+    function evaluateBoardAdvanced(aiId) {
+        let score = 0;
+        const rows = gameState.settings.rows;
+        const cols = gameState.settings.cols;
+        const winCondition = gameState.settings.winCondition;
+
+        const centerCol = Math.floor(cols / 2);
+        for (let r = 0; r < rows; r++) {
+            if (gameState.board[r][centerCol] === aiId) {
+                score += 4 + (rows - r);
+            }
+        }
+
+        score += evaluateAllWindows(aiId);
+
+        score += evaluateConnectivity(aiId);
+
+        score -= evaluateIsolation(aiId) * 2;
+
+        score += evaluatePositionalAdvantages(aiId);
+
+        return score;
+    }
+
+    function evaluateWindowAdvanced(window, aiId) {
+        const winCondition = gameState.settings.winCondition;
+        let aiCount = 0;
+        let opponentCount = 0;
+        let emptyCount = 0;
+
+        for (const piece of window) {
+            if (piece === aiId) {
+                aiCount++;
+            } else if (piece === 0) {
+                emptyCount++;
+            } else {
+                opponentCount++;
+            }
+        }
+
+        if (aiCount > 0 && opponentCount > 0) return 0;
+
+        if (aiCount === winCondition - 1 && emptyCount === 1) return 1000;
+        if (aiCount === winCondition - 2 && emptyCount === 2) return 100;
+        if (aiCount === winCondition - 3 && emptyCount === 3) return 10;
+        if (aiCount > 0 && emptyCount === winCondition - aiCount) return aiCount * 2;
+
+        if (opponentCount === winCondition - 1 && emptyCount === 1) return -800;
+        if (opponentCount === winCondition - 2 && emptyCount === 2) return -80;
+        if (opponentCount === winCondition - 3 && emptyCount === 3) return -8;
+
+        return 0;
+    }
+
+    function evaluateAllWindows(aiId) {
+        let score = 0;
+        const rows = gameState.settings.rows;
+        const cols = gameState.settings.cols;
+        const winCondition = gameState.settings.winCondition;
+
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c <= cols - winCondition; c++) {
+                const window = [];
+                for (let i = 0; i < winCondition; i++) {
+                    window.push(gameState.board[r][c + i]);
+                }
+                score += evaluateWindowAdvanced(window, aiId);
+            }
+        }
+
+        for (let c = 0; c < cols; c++) {
+            for (let r = 0; r <= rows - winCondition; r++) {
+                const window = [];
+                for (let i = 0; i < winCondition; i++) {
+                    window.push(gameState.board[r + i][c]);
+                }
+                score += evaluateWindowAdvanced(window, aiId);
+            }
+        }
+
+        for (let r = 0; r <= rows - winCondition; r++) {
+            for (let c = 0; c <= cols - winCondition; c++) {
+                const window1 = [], window2 = [];
+                for (let i = 0; i < winCondition; i++) {
+                    window1.push(gameState.board[r + i][c + i]);
+                    window2.push(gameState.board[r + winCondition - 1 - i][c + i]);
+                }
+                score += evaluateWindowAdvanced(window1, aiId);
+                score += evaluateWindowAdvanced(window2, aiId);
+            }
+        }
+
+        return score;
+    }
+
+    function evaluateConnectivity(aiId) {
+        let score = 0;
+        const rows = gameState.settings.rows;
+        const cols = gameState.settings.cols;
+
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                if (gameState.board[r][c] === aiId) {
+                    const directions = [
+                        [0, 1], [1, 0], [1, 1], [1, -1],
+                        [0, -1], [-1, 0], [-1, -1], [-1, 1]
+                    ];
+
+                    for (const [dr, dc] of directions) {
+                        const nr = r + dr;
+                        const nc = c + dc;
+                        if (nr >= 0 && nr < rows && nc >= 0 && nc < cols &&
+                            gameState.board[nr][nc] === aiId) {
+                            score += 1;
+                        }
+                    }
+                }
+            }
+        }
+
+        return score;
+    }
+
+    function evaluateIsolation(aiId) {
+        let isolatedPieces = 0;
+        const rows = gameState.settings.rows;
+        const cols = gameState.settings.cols;
+
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                if (gameState.board[r][c] === aiId) {
+                    let hasNeighbor = false;
+                    const directions = [[0, 1], [1, 0], [0, -1], [-1, 0]];
+
+                    for (const [dr, dc] of directions) {
+                        const nr = r + dr;
+                        const nc = c + dc;
+                        if (nr >= 0 && nr < rows && nc >= 0 && nc < cols &&
+                            gameState.board[nr][nc] === aiId) {
+                            hasNeighbor = true;
+                            break;
+                        }
+                    }
+
+                    if (!hasNeighbor) isolatedPieces++;
+                }
+            }
+        }
+
+        return isolatedPieces;
+    }
+
+    function evaluatePositionalAdvantages(aiId) {
+        let score = 0;
+        const rows = gameState.settings.rows;
+        const cols = gameState.settings.cols;
+
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                if (gameState.board[r][c] === aiId) {
+                    score += (rows - r);
+
+                    if (r < rows - 1 && gameState.board[r + 1][c] !== 0) {
+                        score += 2;
+                    }
+                }
+            }
+        }
+
+        return score;
+    }
+
+    function checkForTerminalState() {
+        for (let r = 0; r < gameState.settings.rows; r++) {
+            for (let c = 0; c < gameState.settings.cols; c++) {
+                if (gameState.board[r][c] !== 0) {
+                    const winner = checkWin(r, c);
+                    if (winner) {
+                        return { isTerminal: true, winner: winner.id - 1 };
+                    }
+                }
+            }
+        }
+        if (isBoardFull()) {
+            return { isTerminal: true, winner: null };
+        }
+        return { isTerminal: false, winner: null };
+    }
+
+    function evaluateWindow(window, aiId) {
+        return evaluateWindowAdvanced(window, aiId);
+    }
+
+    function evaluateBoard(aiId) {
+        return evaluateBoardAdvanced(aiId);
+    }
+
+    function minimax(depth, isMaximizing, alpha, beta, originalAI) {
+        return minimaxAdvanced(depth, isMaximizing, alpha, beta, originalAI);
+    }
     function togglePause() {
         if (gameState.gameOver) return;
 
@@ -1427,6 +1897,30 @@ document.addEventListener('DOMContentLoaded', () => {
         updateMoveHistory();
         elements.undoBtn.disabled = gameState.moveHistory.length === 0;
         updateDisplay();
+    }
+
+    function showHint() {
+        if (gameState.gameOver || gameState.isPaused) return;
+        const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+        if (currentPlayer.isAI) return;
+
+        document.querySelectorAll('.hint-highlight').forEach(el => {
+            el.classList.remove('hint-highlight');
+        });
+
+        const col = getMediumAIMove();
+        if (col !== -1) {
+            gameState.lastHintColumn = col;
+            for (let r = 0; r < gameState.settings.rows; r++) {
+                const cell = elements.gameBoard.querySelector(`[data-row='${r}'][data-col='${col}']`);
+                if (cell) {
+                    cell.classList.add('column-highlight');
+                    setTimeout(() => {
+                        cell.classList.remove('column-highlight');
+                    }, 2000);
+                }
+            }
+        }
     }
 
     function saveGame() {

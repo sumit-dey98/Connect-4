@@ -9,7 +9,7 @@
     <!-- <script src="https://cdn.tailwindcss.com"></script> -->
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-
+    
 </head>
 
 <body class="light bg-[var(--background)] text-[var(--text)]" role="main">
@@ -41,11 +41,11 @@
                         </div>
                     </div>
                 </div>
-
+                
                 <div id="col-no-display" class="text-center rounded-lg py-3">
 
                 </div>
-
+                
                 <div class="controls-section">
                     <button id="start-game-btn-mobile"
                         class="px-8 py-3 mb-4 bg-purple-600 text-white font-bold rounded-lg shadow-lg hover:bg-purple-700 transition-colors items-center">
@@ -102,8 +102,7 @@
                                     <span id="light-mode-check" style="color: green;">&check; </span> Light</button>
                                 <button id="dark-mode-btn"
                                     class="flex-1 px-4 py-2 bg-gray-600 text-white rounded-lg focus-visible:focus transition-colors">
-                                    <span id="dark-mode-check" class="hidden" style="color: greenyellow;">&check;
-                                    </span> Dark</button>
+                                    <span id="dark-mode-check" class="hidden" style="color: greenyellow;">&check; </span> Dark</button>
                             </div>
                         </div>
 
@@ -193,7 +192,7 @@
                             <label for="win-condition" class="block font-medium mb-1">Discs to Win (3-6)</label>
                             <input type="number" id="win-condition" value="4" min="3" max="6"
                                 class="w-full p-2 rounded bg-white text-black border focus-visible:focus">
-                            <!--                             <p class="text-xs text-gray-300 mt-1">Must be ≤ smallest board dimension</p> -->
+<!--                             <p class="text-xs text-gray-300 mt-1">Must be ≤ smallest board dimension</p> -->
                         </div>
 
                         <div class="mb-6 flex items-center gap-2">
@@ -203,23 +202,20 @@
                         </div>
 
                         <div class="mb-6 flex items-center gap-2">
-                            <input type="checkbox" id="enable-shadow" class="h-5 w-5 rounded focus-visible:focus"
-                                checked>
+                            <input type="checkbox" id="enable-shadow" class="h-5 w-5 rounded focus-visible:focus" checked>
                             <label for="enable-shadow">Enable Shadows</label>
                         </div>
 
                         <div class="mb-6 flex items-center gap-2">
-                            <input type="checkbox" id="enable-bounce" class="h-5 w-5 rounded focus-visible:focus"
-                                checked>
+                            <input type="checkbox" id="enable-bounce" class="h-5 w-5 rounded focus-visible:focus" checked>
                             <label for="enable-bounce">Enable Bounce Animation</label>
                         </div>
 
                         <div class="mb-6 flex items-center gap-2">
-                            <input type="checkbox" id="enable-disc-design" class="h-5 w-5 rounded focus-visible:focus"
-                                checked>
+                            <input type="checkbox" id="enable-disc-design" class="h-5 w-5 rounded focus-visible:focus" checked>
                             <label for="enable-disc-design">Enable Disc Design</label>
                         </div>
-
+                        
                         <div class="mb-4">
                             <div class="flex items-center gap-2 mb-2">
                                 <input type="checkbox" id="enable-sound" class="h-5 w-5 rounded focus-visible:focus"
@@ -250,12 +246,11 @@
         </div>
     </div>
 
-    <div id="com-info-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true"
-        aria-labelledby="com-level-info">
+    <div id="com-info-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="com-level-info">
         <button id="close-com-info-btn"
             class="absolute top-3 right-4 bg-white text-black hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-300 rounded-full p-1">x</button>
         <div class="relative modal-content bg-gray-700 text-white rounded-lg">
-
+            
             <div class="very-easy-info mb-8">
                 <h2 class="text-xl font-bold text-white mb-1">Very Easy (Level 1):</h3>
                     <p class="text-md mb-1">The AI makes completely random moves from available columns. It doesn't
@@ -263,19 +258,16 @@
                         opportunities or blocking your
                         threats.</p>
                     <h3 class="text-lg font-bold text-white mb-1">Strategy: (No need, really)</h3>
-                    <p class="text-md mb-1 strategy">No need for strategies if the player has enough intelligence to
-                        read English.</p>
+                    <p class="text-md mb-1 strategy">No need for strategies if the player has enough intelligence to read English.</p>
             </div>
 
             <div class="easy-info mb-8">
                 <h2 class="text-xl font-bold text-white mb-1">Easy (Level 2):</h3>
                     <p class="text-md mb-1">The AI can recognize immediate winning moves and will block the obvious
-                        threats, but has a 30% probability of making a random move. When playing strategically, it only
-                        looks one move ahead and uses basic board evaluation.
+                        threats, but has a 30% probability of making a random move. When playing strategically, it only looks one move ahead and uses basic board evaluation.
                     </p>
                     <h3 class="text-lg font-bold text-white mb-1">Strategy: (Wait for it)</h3>
-                    <p class="text-md mb-1 strategy">Set up two-move combinations and fork attacks (creating two threats
-                        that
+                    <p class="text-md mb-1 strategy">Set up two-move combinations and fork attacks (creating two threats that
                         can't both be blocked).
                         The frequent random
                         moves will cause the AI to make mistakes, so the player can wait for it.</p>
@@ -284,13 +276,11 @@
             <div class="medium-info mb-8">
                 <h2 class="text-xl font-bold text-white mb-1">Medium (Level 3):</h3>
                     <p class="text-md mb-1">The AI thinks 3 moves ahead using minimax algorithm with alpha-beta pruning,
-                        but has a 10% probability of making a random move. It actively looks for fork opportunities and
-                        can execute complex tactical sequences.
+                        but has a 10% probability of making a random move. It actively looks for fork opportunities and can execute complex tactical sequences.
                         This level will pose a challenge for most players.
                     </p>
                     <h3 class="text-lg font-bold text-white mb-1">Strategy: (Winning is hard)</h3>
-                    <p class="text-md mb-1 strategy">Focus on long-term positional play and center control. The rare
-                        random moves
+                    <p class="text-md mb-1 strategy">Focus on long-term positional play and center control. The rare random moves
                         might give the player
                         occasional openings, but
                         expect mostly strong strategic play. Build connected formations and create subtle threats that
@@ -308,22 +298,19 @@
                         ordering and positional
                         advantages. Has a 2% chance of making a random move.</p>
                     <h3 class="text-lg font-bold text-white mb-1">Strategy: (Pray)</h3>
-                    <p class="text-md mb-1 strategy">Play patient, positional games focusing on board control rather
-                        than quick
+                    <p class="text-md mb-1 strategy">Play patient, positional games focusing on board control rather than quick
                         attacks. Build strong
                         formations in the
                         center, maintain piece connectivity, and look for very subtle long-term advantages. Expect the
                         AI to find and counter
-                        pretty much all your tactical threats. Pray for the 2% chance of a mistake. Otherwise lose, but
-                        with dignity.</p>
+                        pretty much all your tactical threats. Pray for the 2% chance of a mistake. Otherwise lose, but with dignity.</p>
             </div>
 
             <div class="very-hard-info mb-8">
                 <h2 class="text-xl font-bold text-white mb-1">Very Hard (Level 5):</h3>
                     <p class="text-md mb-1">Same as Hard, but no random moves.</p>
                     <h3 class="text-lg font-bold text-white mb-1">Strategy: (Lose with dignity)</h3>
-                    <p class="text-md mb-1 strategy">Same strategy as Hard. But there will be no random moves. So lose,
-                        but with dignity.</p>
+                    <p class="text-md mb-1 strategy">Same strategy as Hard. But there will be no random moves. So lose, but with dignity.</p>
             </div>
 
             <ul>
@@ -334,12 +321,11 @@
                         involve some randomness. So, the same set of moves will not always work.</p>
                 </li>
                 <li>
-                    <p class="text-md font-bold text-white mb-1"> <sup>*</sup> Visit <a
-                            style="text-decoration: underline;" href="http://blog.gamesolver.org/">Solving Connect 4:
-                            how to build a perfect AI</a>
+                    <p class="text-md font-bold text-white mb-1"> <sup>*</sup> Visit <a style="text-decoration: underline;"
+                            href="http://blog.gamesolver.org/">Solving Connect 4: how to build a perfect AI</a>
                         for a detailed study of the AI algorithms.</p>
                 </li>
-            </ul>
+            </ul>          
         </div>
     </div>
 
