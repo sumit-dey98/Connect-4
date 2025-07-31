@@ -1508,6 +1508,12 @@ button#close-com-info-btn:hover {
   transform-origin: center;
 }
 
+.hint-highlight {
+  outline: #e5e7eb solid 1px !important;
+  animation: fade-in-out 0.5s ease infinite;
+  cursor: pointer
+}
+
 @keyframes loading {
   0% {
     transform: rotate(0deg);
@@ -1515,5 +1521,18 @@ button#close-com-info-btn:hover {
 
   100% {
     transform: rotate(360deg);
+  }
+}
+@keyframes fade-in-out {
+  0% {
+    opacity: 0;
+  }
+
+  50% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
   }
 }

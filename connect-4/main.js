@@ -3,6 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const DEFAULT_PLAYER_COLORS = ['#ff0000', '#00ff00', '#ffff00', '#FF5F1F', '#0000ff', '#00ffff', '#ff00ff', '#ffffff', '#000000'];
     const ANIMATION_DURATION = 500;
 
+    // Cached DOM elements and computed values
     const elements = {
         gameBoard: document.getElementById('game-board'),
         statusMessage: document.getElementById('status-message'),
@@ -57,9 +58,21 @@ document.addEventListener('DOMContentLoaded', () => {
         errorSound: document.getElementById('error-sound')
     };
 
+    // Performance optimization caches
+    const renderCache = {
+        boardDimensions: null,
+        cellDimensions: null,
+        maskGradients: null,
+        lastBoardState: null,
+        cellElements: new Map(),
+        discPool: [],
+        availableDiscs: [],
+        pendingUpdates: new Set(),
+        frameId: null
+    };
+
     let gameState = {};
     let currentFocusedColumn = 0;
-
     let aiWorker = null;
     let workerSupported = false;
 
@@ -114,6 +127,159 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
+    // batch update system
+    function scheduleBoardUpdate() {
+        if (renderCache.frameId) return;
+
+        renderCache.frameId = requestAnimationFrame(() => {
+            if (renderCache.pendingUpdates.size > 0) {
+                performBatchUpdates();
+                renderCache.pendingUpdates.clear();
+            }
+            renderCache.frameId = null;
+        });
+    }
+
+    function performBatchUpdates() {
+        const updates = Array.from(renderCache.pendingUpdates);
+        const fragment = document.createDocumentFragment();
+
+        updates.forEach(update => {
+            const [row, col] = update.split(',').map(Number);
+            updateCell(row, col, fragment);
+        });
+
+        if (fragment.children.length > 0) {
+            elements.gameBoard.appendChild(fragment);
+        }
+    }
+
+    function updateCell(row, col, fragment = null) {
+        const cellKey = `${row},${col}`;
+        let cell = renderCache.cellElements.get(cellKey);
+
+        if (!cell) {
+            cell = createCell(row, col);
+            renderCache.cellElements.set(cellKey, cell);
+        }
+
+        const playerOwner = gameState.board[row][col];
+        const existingDisc = cell.querySelector('.disc');
+
+        if (playerOwner > 0) {
+            if (!existingDisc) {
+                const disc = createDisc(gameState.players[playerOwner - 1].color, gameState.players[playerOwner - 1].name);
+                cell.appendChild(disc);
+            } else {
+                // Update existing disc
+                existingDisc.style.backgroundColor = gameState.players[playerOwner - 1].color;
+                existingDisc.setAttribute('aria-label', `${gameState.players[playerOwner - 1].name} disc`);
+            }
+        } else if (existingDisc) {
+            // Remove disc if cell is empty
+            recycleDisc(existingDisc);
+            cell.removeChild(existingDisc);
+        }
+
+        if (fragment && !cell.parentNode) {
+            fragment.appendChild(cell);
+        }
+    }
+
+    function createCell(row, col) {
+        const cell = document.createElement('div');
+        cell.className = 'cell aspect-square flex justify-center items-center';
+        cell.dataset.row = row;
+        cell.dataset.col = col;
+        cell.setAttribute('role', 'gridcell');
+        cell.setAttribute('aria-label', `Row ${row + 1}, Column ${col + 1}`);
+
+        if (row === 0) {
+            cell.addEventListener('click', () => handleCellClick(col));
+            cell.addEventListener('mouseenter', () => highlightColumn(col, true));
+            cell.addEventListener('mouseleave', () => highlightColumn(col, false));
+            cell.tabIndex = 0;
+            cell.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    handleCellClick(col);
+                }
+            });
+        }
+
+        return cell;
+    }
+
+    function createDisc(color, playerName) {
+        let disc;
+
+        if (renderCache.availableDiscs.length > 0) {
+            disc = renderCache.availableDiscs.pop();
+        } else {
+            disc = document.createElement('div');
+            disc.className = 'disc';
+            renderCache.discPool.push(disc);
+        }
+
+        disc.style.backgroundColor = color;
+        disc.setAttribute('aria-label', `${playerName} disc`);
+        disc.classList.remove('winning-disc');
+
+        return disc;
+    }
+
+    function recycleDisc(disc) {
+        disc.classList.remove('winning-disc');
+        renderCache.availableDiscs.push(disc);
+    }
+
+    // board dimension calculations
+    function calculateBoardDimensions() {
+        if (!gameState.settings) return null;
+
+        const boardRect = elements.gameBoard.getBoundingClientRect();
+        const boardStyle = window.getComputedStyle(elements.gameBoard);
+        const paddingLeft = parseFloat(boardStyle.paddingLeft);
+        const paddingTop = parseFloat(boardStyle.paddingTop);
+        const paddingRight = parseFloat(boardStyle.paddingRight);
+        const paddingBottom = parseFloat(boardStyle.paddingBottom);
+
+        const gap = window.innerWidth < 576 ? 6 : 12;
+        const contentWidth = boardRect.width - paddingLeft - paddingRight;
+        const contentHeight = boardRect.height - paddingTop - paddingBottom;
+
+        const cellWidth = (contentWidth - (gameState.settings.cols - 1) * gap) / gameState.settings.cols;
+        const cellHeight = (contentHeight - (gameState.settings.rows - 1) * gap) / gameState.settings.rows;
+
+        return {
+            boardRect,
+            paddingLeft,
+            paddingTop,
+            paddingRight,
+            paddingBottom,
+            gap,
+            contentWidth,
+            contentHeight,
+            cellWidth,
+            cellHeight,
+            discDiameter: cellWidth * 0.9
+        };
+    }
+
+    function getCachedDimensions() {
+        if (!renderCache.boardDimensions) {
+            renderCache.boardDimensions = calculateBoardDimensions();
+        }
+        return renderCache.boardDimensions;
+    }
+
+    function invalidateCache() {
+        renderCache.boardDimensions = null;
+        renderCache.cellDimensions = null;
+        renderCache.maskGradients = null;
+        renderCache.lastBoardState = null;
+    }
+
     function validateSettings() {
         const rows = parseInt(elements.boardRowsInput.value);
         const cols = parseInt(elements.boardColsInput.value);
@@ -143,7 +309,8 @@ document.addEventListener('DOMContentLoaded', () => {
             el.classList.remove('keyboard-focus');
         });
         for (let r = 0; r < gameState.settings.rows; r++) {
-            const cell = elements.gameBoard.querySelector(`[data-row='${r}'][data-col='${currentFocusedColumn}']`);
+            const cellKey = `${r},${currentFocusedColumn}`;
+            const cell = renderCache.cellElements.get(cellKey);
             if (cell) {
                 cell.classList.add('keyboard-focus');
             }
@@ -213,12 +380,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function setupEventListeners() {
+        // Theme switching
         elements.lightModeBtn.addEventListener('click', () => {
             document.body.className = 'light bg-[var(--background)] text-[var(--text)]';
             elements.lightModeCheck.classList.remove('hidden');
             elements.darkModeCheck.classList.add('hidden');
             updateShadowSettings();
         });
+
         elements.darkModeBtn.addEventListener('click', () => {
             document.body.className = 'dark bg-[var(--background)] text-[var(--text)]';
             elements.lightModeCheck.classList.add('hidden');
@@ -226,41 +395,48 @@ document.addEventListener('DOMContentLoaded', () => {
             updateShadowSettings();
         });
 
+        // Game settings
         elements.boardColorSelect.addEventListener('change', (e) => {
             elements.boardVisualLayer.style.backgroundColor = e.target.value;
         });
+
         elements.gameModeSelect.addEventListener('change', updateGameModeOptionsVisibility);
         elements.playerModeSelect.addEventListener('change', updatePlayerInputs);
         elements.startGameBtn.addEventListener('click', startGame);
 
+        // Input validation with optimized debouncing
         const debouncedValidation = debounce(() => {
             validateInputs();
         }, 300);
+
         [elements.boardRowsInput, elements.boardColsInput, elements.winConditionInput].forEach(input => {
             input.addEventListener('input', debouncedValidation);
         });
 
+        // Game controls
         elements.pauseBtn.addEventListener('click', togglePause);
         elements.undoBtn.addEventListener('click', undoMove);
         elements.saveBtn.addEventListener('click', saveGame);
         elements.loadGameInput.addEventListener('change', loadGame);
 
+        // Modal controls
         elements.playAgainBtn.addEventListener('click', () => {
             hideModal();
             startGame();
         });
-        elements.closeModalBtn.addEventListener('click', () => {
-            hideModal();
-        });
+        elements.closeModalBtn.addEventListener('click', hideModal);
 
+        // Keyboard handling
         document.addEventListener('keydown', handleKeyboard);
 
+        // Optimized resize handler
         const debouncedResize = debounce(() => {
+            invalidateCache();
             if (gameState.board && gameState.board.length > 0) {
                 elements.fallingDiscLayer.innerHTML = '';
                 renderBoard();
             }
-        }, 250);
+        }, 500);
 
         window.addEventListener('beforeunload', (e) => {
             if (!gameState.gameOver && gameState.moveHistory.length > 0) {
@@ -268,8 +444,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.returnValue = '';
             }
         });
+
         window.addEventListener('resize', debouncedResize);
 
+        // Color dropdown handling
         document.addEventListener('click', (e) => {
             if (!e.target.closest('.color-dropdown')) {
                 document.querySelectorAll('.color-dropdown-content').forEach(content => {
@@ -278,13 +456,15 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
+        // Settings
         elements.enableShadowCheckbox.addEventListener('change', updateShadowSettings);
         elements.enableDiscDesignCheckbox.addEventListener('change', updateDiscDesignSettings);
         elements.enableSoundCheckbox.addEventListener('change', updateAudioSettings);
 
+        // Button sound effects
         const buttonsWithSound = [
-            elements.startGameBtn, elements.pauseBtn, elements.undoBtn, elements.saveBtn, elements.playAgainBtn,
-            elements.closeModalBtn, elements.lightModeBtn, elements.darkModeBtn
+            elements.startGameBtn, elements.pauseBtn, elements.undoBtn, elements.saveBtn,
+            elements.playAgainBtn, elements.closeModalBtn, elements.lightModeBtn, elements.darkModeBtn
         ];
 
         buttonsWithSound.forEach(button => {
@@ -345,117 +525,137 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.fixedTurnOptions.classList.toggle('hidden', mode !== 'fixed_turn');
     }
 
+    // Optimized player input management
     function updatePlayerInputs() {
-        elements.playerColorsContainer.innerHTML = '';
         const playerCount = getPlayerCount();
-        for (let i = 0; i < playerCount; i++) {
-            const playerType = getPlayerType(i);
-            const defaultName = playerType === 'Computer' ? 'Computer' : `Player ${i + 1}`;
+        const existingInputs = elements.playerColorsContainer.children.length;
 
-            const label = document.createElement('label');
-            label.className = 'block font-medium mb-1';
-            label.textContent = playerType;
+        // Only rebuild if player count changed
+        if (existingInputs !== playerCount) {
+            elements.playerColorsContainer.innerHTML = '';
 
-            const inputContainer = document.createElement('div');
-            inputContainer.className = 'flex gap-2 mb-3';
-
-            const colorDropdown = document.createElement('div');
-            colorDropdown.className = 'color-dropdown';
-            colorDropdown.id = `player-${i + 1}-color-dropdown`;
-
-            const currentColor = gameState.players && gameState.players[i] ?
-                gameState.players[i].color : DEFAULT_PLAYER_COLORS[i];
-
-            const dropdownButton = document.createElement('div');
-            dropdownButton.className = 'color-dropdown-button';
-            dropdownButton.style.backgroundColor = currentColor;
-            dropdownButton.setAttribute('tabindex', '0');
-            dropdownButton.setAttribute('role', 'button');
-            dropdownButton.setAttribute('aria-label', `Select color for ${getPlayerType(i)}`);
-
-            const dropdownContent = document.createElement('div');
-            dropdownContent.className = 'color-dropdown-content';
-
-            DEFAULT_PLAYER_COLORS.forEach(color => {
-                const colorOption = document.createElement('div');
-                colorOption.className = 'color-option';
-                colorOption.style.backgroundColor = color;
-                if (color === currentColor) {
-                    colorOption.classList.add('selected');
-                }
-
-                colorOption.addEventListener('click', () => {
-                    dropdownButton.style.backgroundColor = color;
-
-                    dropdownContent.querySelectorAll('.color-option').forEach(opt =>
-                        opt.classList.remove('selected'));
-                    colorOption.classList.add('selected');
-
-                    if (gameState.players && gameState.players[i]) {
-                        gameState.players[i].color = color;
-                        renderBoard();
-                        updateDisplay();
-                        updateMoveHistory();
-                    }
-
-                    dropdownContent.classList.remove('show');
-                });
-
-                dropdownContent.appendChild(colorOption);
-            });
-
-            dropdownButton.addEventListener('click', (e) => {
-                e.stopPropagation();
-                document.querySelectorAll('.color-dropdown-content').forEach(content => {
-                    if (content !== dropdownContent) {
-                        content.classList.remove('show');
-                    }
-                });
-                dropdownContent.classList.toggle('show');
-            });
-
-            dropdownButton.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    dropdownButton.click();
-                }
-            });
-
-            colorDropdown.appendChild(dropdownButton);
-            colorDropdown.appendChild(dropdownContent);
-
-            const nameInput = document.createElement('input');
-            nameInput.type = 'text';
-            nameInput.id = `player-${i + 1}-name`;
-            nameInput.className = 'flex-1 p-2 rounded bg-white dark:bg-gray-700 border focus-visible:focus';
-            nameInput.value = gameState.players && gameState.players[i] ?
-                gameState.players[i].name : defaultName;
-            nameInput.placeholder = defaultName;
-
-            colorDropdown.addEventListener('change', (e) => {
-                if (gameState.players && gameState.players[i]) {
-                    gameState.players[i].color = e.target.value;
-                    renderBoard();
-                    updateDisplay();
-                    updateMoveHistory();
-                }
-            });
-
-            nameInput.addEventListener('input', (e) => {
-                if (gameState.players && gameState.players[i]) {
-                    gameState.players[i].name = e.target.value || defaultName;
-                    updateDisplay();
-                    updateMoveHistory();
-                }
-            });
-
-            inputContainer.appendChild(colorDropdown);
-            inputContainer.appendChild(nameInput);
-
-            elements.playerColorsContainer.appendChild(inputContainer);
+            for (let i = 0; i < playerCount; i++) {
+                const playerContainer = createPlayerInput(i);
+                elements.playerColorsContainer.appendChild(playerContainer);
+            }
         }
 
         updateAISettings();
+    }
+
+    function createPlayerInput(index) {
+        const playerType = getPlayerType(index);
+        const defaultName = playerType === 'Computer' ? 'Computer' : `Player ${index + 1}`;
+
+        const inputContainer = document.createElement('div');
+        inputContainer.className = 'flex gap-2 mb-3';
+
+        const label = document.createElement('label');
+        label.className = 'block font-medium mb-1';
+        label.textContent = playerType;
+
+        const colorDropdown = createColorDropdown(index, defaultName);
+        const nameInput = createNameInput(index, defaultName);
+
+        inputContainer.appendChild(colorDropdown);
+        inputContainer.appendChild(nameInput);
+
+        const container = document.createElement('div');
+        container.appendChild(label);
+        container.appendChild(inputContainer);
+
+        return container;
+    }
+
+    function createColorDropdown(index, playerType) {
+        const colorDropdown = document.createElement('div');
+        colorDropdown.className = 'color-dropdown';
+        colorDropdown.id = `player-${index + 1}-color-dropdown`;
+
+        const currentColor = gameState.players && gameState.players[index] ?
+            gameState.players[index].color : DEFAULT_PLAYER_COLORS[index];
+
+        const dropdownButton = document.createElement('div');
+        dropdownButton.className = 'color-dropdown-button';
+        dropdownButton.style.backgroundColor = currentColor;
+        dropdownButton.setAttribute('tabindex', '0');
+        dropdownButton.setAttribute('role', 'button');
+        dropdownButton.setAttribute('aria-label', `Select color for ${playerType}`);
+
+        const dropdownContent = document.createElement('div');
+        dropdownContent.className = 'color-dropdown-content';
+
+        // Pre-create color options
+        const colorOptions = DEFAULT_PLAYER_COLORS.map(color => {
+            const colorOption = document.createElement('div');
+            colorOption.className = 'color-option';
+            colorOption.style.backgroundColor = color;
+            if (color === currentColor) {
+                colorOption.classList.add('selected');
+            }
+
+            colorOption.addEventListener('click', () => {
+                dropdownButton.style.backgroundColor = color;
+                dropdownContent.querySelectorAll('.color-option').forEach(opt =>
+                    opt.classList.remove('selected'));
+                colorOption.classList.add('selected');
+
+                if (gameState.players && gameState.players[index]) {
+                    gameState.players[index].color = color;
+                    scheduleIncrementalBoardUpdate();
+                    updateDisplay();
+                    updateMoveHistory();
+                }
+
+                dropdownContent.classList.remove('show');
+            });
+
+            return colorOption;
+        });
+
+        colorOptions.forEach(option => dropdownContent.appendChild(option));
+
+        dropdownButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            document.querySelectorAll('.color-dropdown-content').forEach(content => {
+                if (content !== dropdownContent) {
+                    content.classList.remove('show');
+                }
+            });
+            dropdownContent.classList.toggle('show');
+        });
+
+        dropdownButton.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                dropdownButton.click();
+            }
+        });
+
+        colorDropdown.appendChild(dropdownButton);
+        colorDropdown.appendChild(dropdownContent);
+
+        return colorDropdown;
+    }
+
+    function createNameInput(index, defaultName) {
+        const nameInput = document.createElement('input');
+        nameInput.type = 'text';
+        nameInput.id = `player-${index + 1}-name`;
+        nameInput.className = 'flex-1 p-2 rounded bg-white dark:bg-gray-700 border focus-visible:focus';
+        nameInput.value = gameState.players && gameState.players[index] ?
+            gameState.players[index].name : defaultName;
+        nameInput.placeholder = defaultName;
+
+        nameInput.addEventListener('input', (e) => {
+            if (gameState.players && gameState.players[index]) {
+                gameState.players[index].name = e.target.value || defaultName;
+                updateDisplay();
+                updateMoveHistory();
+            }
+        });
+
+        return nameInput;
     }
 
     function updateAISettings() {
@@ -470,6 +670,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const select = document.createElement('select');
             select.id = 'ai-difficulty';
             select.className = 'w-full p-2 rounded bg-white dark:bg-gray-700 border focus-visible:focus';
+
             ['very easy', 'easy', 'medium', 'hard', 'very hard'].forEach(difficulty => {
                 const option = document.createElement('option');
                 option.value = difficulty;
@@ -480,7 +681,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const aiInfoBtn = document.createElement('span');
             aiInfoBtn.textContent = '?';
             aiInfoBtn.className = 'ml-2 cursor-pointer text-blue-400 hover:text-blue-300 font-bold text-lg';
-            aiInfoBtn.style.cursor = 'pointer';
 
             label.appendChild(aiInfoBtn);
             elements.aiSettingsContainer.appendChild(label);
@@ -540,7 +740,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             audioElement.currentTime = 0;
-
             const volumeLevel = volume !== null ? volume : 1.0;
             audioElement.volume = Math.max(0, Math.min(1, volumeLevel));
 
@@ -557,33 +756,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateAudioSettings() {
         const soundEnabled = elements.enableSoundCheckbox.checked;
-
         const volume = soundEnabled ? 1.0 : 0;
 
-        if (elements.discDropSound) elements.discDropSound.volume = volume;
-        if (elements.winSound) elements.winSound.volume = volume;
-        if (elements.computerWinSound) elements.computerWinSound.volume = volume;
-        if (elements.buttonClickSound) elements.buttonClickSound.volume = volume;
-        if (elements.columnHoverSound) elements.columnHoverSound.volume = volume;
-        if (elements.errorSound) elements.errorSound.volume = volume;
+        [elements.discDropSound, elements.winSound, elements.computerWinSound,
+        elements.buttonClickSound, elements.columnHoverSound, elements.errorSound].forEach(audio => {
+            if (audio) audio.volume = volume;
+        });
     }
 
     function updateShadowSettings() {
         const shadowEnabled = elements.enableShadowCheckbox.checked;
-        if (!shadowEnabled) {
-            document.body.classList.add('shadow-toggle');
-        } else {
-            document.body.classList.remove('shadow-toggle');
-        }
+        document.body.classList.toggle('shadow-toggle', !shadowEnabled);
     }
 
     function updateDiscDesignSettings() {
         const discDesignEnabled = elements.enableDiscDesignCheckbox.checked;
-        if (!discDesignEnabled) {
-            document.documentElement.style.setProperty('--after-display', 'none');
-        } else {
-            document.documentElement.style.setProperty('--after-display', 'block');
-        }
+        document.documentElement.style.setProperty('--after-display', discDesignEnabled ? 'block' : 'none');
     }
 
     function init() {
@@ -607,6 +795,7 @@ document.addEventListener('DOMContentLoaded', () => {
         cleanupGame();
         gameState = getDefaultGameState();
 
+        // Cache settings
         gameState.settings.rows = parseInt(elements.boardRowsInput.value);
         gameState.settings.cols = parseInt(elements.boardColsInput.value);
         gameState.settings.winCondition = parseInt(elements.winConditionInput.value);
@@ -621,9 +810,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const colors = getUniqueColors();
         gameState.players = [];
         gameState.turnsTaken = [];
+
         for (let i = 0; i < playerCount; i++) {
             const isAI = elements.playerModeSelect.value === 'vs_com' && i === 1;
-
             const nameInput = document.getElementById(`player-${i + 1}-name`);
             const playerName = nameInput ? nameInput.value.trim() || (isAI ? 'Computer' : `Player ${i + 1}`) : (isAI ? 'Computer' : `Player ${i + 1}`);
 
@@ -649,6 +838,7 @@ document.addEventListener('DOMContentLoaded', () => {
             gameState.timers.remainingTurnTime = gameState.settings.turnTimeLimit;
         }
 
+        invalidateCache();
         renderBoard();
         updateDisplay();
         elements.winnerModal.classList.add('hidden');
@@ -672,102 +862,162 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function cleanupGame() {
         clearTimers();
+
+        // Clear falling disc layer
         if (elements.fallingDiscLayer) {
             elements.fallingDiscLayer.innerHTML = '';
         }
+
+        // Reset timer states
         if (gameState && gameState.timers) {
             gameState.timers.gamePaused = false;
             gameState.timers.turnPaused = false;
         }
+
+        // Cancel any pending render operations
+        if (renderCache.frameId) {
+            cancelAnimationFrame(renderCache.frameId);
+            renderCache.frameId = null;
+        }
+
+        // Clear all caches - for preventing memory leaks
+        renderCache.cellElements.clear();
+        renderCache.pendingUpdates.clear();
+        invalidateCache();
+
+        // Reset disc pooling system
+        renderCache.availableDiscs.length = 0;
+        renderCache.discPool.length = 0;
     }
 
+    // Optimized incremental board rendering
     function renderBoard() {
+        const dimensions = getCachedDimensions();
+        if (!dimensions) return;
+
         const aspectRatio = `${gameState.settings.cols}/${gameState.settings.rows}`;
         elements.boardContainer.style.setProperty('--board-aspect-ratio', aspectRatio);
-        elements.gameBoard.innerHTML = '';
 
-        elements.gameBoard.style.gridTemplateColumns = `repeat(${gameState.settings.cols}, 1fr)`;
-        elements.gameBoard.style.gridTemplateRows = `repeat(${gameState.settings.rows}, 1fr)`;
+        // Check if we need to rebuild the grid structure
+        const currentGridCols = elements.gameBoard.style.gridTemplateColumns;
+        const currentGridRows = elements.gameBoard.style.gridTemplateRows;
+        const newGridCols = `repeat(${gameState.settings.cols}, 1fr)`;
+        const newGridRows = `repeat(${gameState.settings.rows}, 1fr)`;
+        const expectedCellCount = gameState.settings.rows * gameState.settings.cols;
 
-        const boardComputedStyle = window.getComputedStyle(elements.gameBoard);
-        const boardPaddingLeft = parseFloat(boardComputedStyle.paddingLeft);
-        const boardPaddingTop = parseFloat(boardComputedStyle.paddingTop);
-        let gap = 12;
-        if (window.innerWidth < 576) {
-            gap = 6;
-        }
+        const needsGridRebuild = (
+            currentGridCols !== newGridCols ||
+            currentGridRows !== newGridRows ||
+            renderCache.cellElements.size !== expectedCellCount ||
+            elements.gameBoard.children.length !== expectedCellCount
+        );
 
-        const boardContentWidth = elements.gameBoard.clientWidth - boardPaddingLeft - parseFloat(boardComputedStyle.paddingRight);
-        const boardContentHeight = elements.gameBoard.clientHeight - boardPaddingTop - parseFloat(boardComputedStyle.paddingBottom);
+        if (needsGridRebuild) {
+            // Full rebuild needed - dimensions changed
+            // console.log('Rebuilding grid structure');
+            elements.gameBoard.innerHTML = '';
+            renderCache.cellElements.clear();
 
-        const cellWidth = (boardContentWidth - (gameState.settings.cols - 1) * gap) / gameState.settings.cols;
-        const cellHeight = (boardContentHeight - (gameState.settings.rows - 1) * gap) / gameState.settings.rows;
+            // Set new grid template
+            elements.gameBoard.style.gridTemplateColumns = newGridCols;
+            elements.gameBoard.style.gridTemplateRows = newGridRows;
 
-        const discDiameter = (cellWidth * 0.9);
-        const holeRadius = discDiameter / 2;
-
-        const maskGradients = [];
-        maskGradients.push('linear-gradient(black, black)');
-
-        for (let r = 0; r < gameState.settings.rows; r++) {
-            for (let c = 0; c < gameState.settings.cols; c++) {
-                const xCenter = boardPaddingLeft + c * (cellWidth + gap) + cellWidth / 2;
-                const yCenter = boardPaddingTop + r * (cellHeight + gap) + cellHeight / 2;
-
-                maskGradients.push(`radial-gradient(circle ${holeRadius}px at ${xCenter}px ${yCenter}px, black ${holeRadius * 0.95}px, transparent ${holeRadius * 1}px)`);
-
-                const cell = document.createElement('div');
-                cell.className = 'cell aspect-square flex justify-center items-center';
-                cell.dataset.row = r;
-                cell.dataset.col = c;
-                cell.setAttribute('role', 'gridcell');
-                cell.setAttribute('aria-label', `Row ${r + 1}, Column ${c + 1}`);
-
-                if (r === 0) {
-                    cell.addEventListener('click', () => handleCellClick(c));
-                    cell.addEventListener('mouseenter', () => highlightColumn(c, true));
-                    cell.addEventListener('mouseleave', () => highlightColumn(c, false));
-                    cell.tabIndex = 0;
-                    cell.addEventListener('keydown', (e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            handleCellClick(c);
-                        }
-                    });
-                }
-                elements.gameBoard.appendChild(cell);
-
-                const playerOwner = gameState.board[r][c];
-                if (playerOwner > 0) {
-                    const disc = document.createElement('div');
-                    disc.className = 'disc';
-                    disc.style.backgroundColor = gameState.players[playerOwner - 1].color;
-                    disc.setAttribute('aria-label', `${gameState.players[playerOwner - 1].name} disc`);
-                    cell.appendChild(disc);
+            // Create all cells at once using DocumentFragment
+            const fragment = document.createDocumentFragment();
+            for (let r = 0; r < gameState.settings.rows; r++) {
+                for (let c = 0; c < gameState.settings.cols; c++) {
+                    const cell = createCell(r, c);
+                    const cellKey = `${r},${c}`;
+                    renderCache.cellElements.set(cellKey, cell);
+                    fragment.appendChild(cell);
                 }
             }
+            elements.gameBoard.appendChild(fragment);
+
+            // Force mask gradient regeneration
+            renderCache.maskGradients = null;
+            renderCache.lastBoardState = null;
         }
 
-        requestAnimationFrame(() => {
-            const maskValue = maskGradients.join(', ');
-            elements.boardVisualLayer.style.maskImage = maskValue;
-            elements.boardVisualLayer.style.webkitMaskImage = maskValue;
-        });
+        // Generate or update mask gradients if needed
+        if (!renderCache.maskGradients || !renderCache.lastBoardState ||
+            !arraysEqual(renderCache.lastBoardState, gameState.board)) {
+            generateMaskGradients();
+        }
 
+        // Update cell contents incrementally
+        scheduleIncrementalBoardUpdate();
+
+        // Update additional display elements
         highlightWinningCells();
         colNoDisplay();
     }
 
+    function arraysEqual(arr1, arr2) {
+        if (!arr1 || !arr2) return false;
+        if (arr1.length !== arr2.length) return false;
+
+        for (let i = 0; i < arr1.length; i++) {
+            if (!arr1[i] || !arr2[i]) return false;
+            if (arr1[i].length !== arr2[i].length) return false;
+            for (let j = 0; j < arr1[i].length; j++) {
+                if (arr1[i][j] !== arr2[i][j]) return false;
+            }
+        }
+        return true;
+    }
+
+    function scheduleIncrementalBoardUpdate() {
+        for (let r = 0; r < gameState.settings.rows; r++) {
+            for (let c = 0; c < gameState.settings.cols; c++) {
+                renderCache.pendingUpdates.add(`${r},${c}`);
+            }
+        }
+        scheduleBoardUpdate();
+    }
+
+    function generateMaskGradients() {
+        renderCache.boardDimensions = null; // Force recalc
+        const dimensions = getCachedDimensions();
+
+        const maskGradients = ['linear-gradient(black, black)'];
+        const holeRadius = dimensions.discDiameter / 2;
+
+        for (let r = 0; r < gameState.settings.rows; r++) {
+            for (let c = 0; c < gameState.settings.cols; c++) {
+                const xCenter = dimensions.paddingLeft + c * (dimensions.cellWidth + dimensions.gap) + dimensions.cellWidth / 2;
+                const yCenter = dimensions.paddingTop + r * (dimensions.cellHeight + dimensions.gap) + dimensions.cellHeight / 2;
+
+                maskGradients.push(`radial-gradient(circle ${holeRadius}px at ${xCenter}px ${yCenter}px, black ${holeRadius * 0.95}px, transparent ${holeRadius * 1}px)`);
+            }
+        }
+
+        renderCache.maskGradients = maskGradients.join(', ');
+
+        requestAnimationFrame(() => {
+            elements.boardVisualLayer.style.maskImage = renderCache.maskGradients;
+            elements.boardVisualLayer.style.webkitMaskImage = renderCache.maskGradients;
+        });
+
+        renderCache.lastBoardState = gameState.board.map(row => [...row]);
+    }
+
     function colNoDisplay() {
         const colNoContainer = document.getElementById('col-no-display');
-        colNoContainer.innerHTML = '';
-        colNoContainer.classList.add('grid');
-        colNoContainer.style.gridTemplateColumns = `repeat(${gameState.settings.cols}, 1fr)`;
 
-        for (let c = 0; c < gameState.settings.cols; c++) {
-            const colNo = document.createElement('h3');
-            colNo.textContent = `${c + 1}`;
-            colNoContainer.appendChild(colNo);
+        // Only rebuild if column count changed
+        if (colNoContainer.children.length !== gameState.settings.cols) {
+            colNoContainer.innerHTML = '';
+            colNoContainer.classList.add('grid');
+            colNoContainer.style.gridTemplateColumns = `repeat(${gameState.settings.cols}, 1fr)`;
+
+            const fragment = document.createDocumentFragment();
+            for (let c = 0; c < gameState.settings.cols; c++) {
+                const colNo = document.createElement('h3');
+                colNo.textContent = `${c + 1}`;
+                fragment.appendChild(colNo);
+            }
+            colNoContainer.appendChild(fragment);
         }
     }
 
@@ -776,24 +1026,24 @@ document.addEventListener('DOMContentLoaded', () => {
         const currentPlayer = gameState.players[gameState.currentPlayerIndex];
         if (currentPlayer && currentPlayer.isAI) return;
 
+        const shouldHighlight = highlight && getNextAvailableRow(col) !== -1;
+
         for (let r = 0; r < gameState.settings.rows; r++) {
-            const cell = elements.gameBoard.querySelector(`[data-row='${r}'][data-col='${col}']`);
+            const cellKey = `${r},${col}`;
+            const cell = renderCache.cellElements.get(cellKey);
             if (cell) {
-                if (highlight && getNextAvailableRow(col) !== -1) {
-                    cell.classList.add('column-highlight');
-                } else {
-                    cell.classList.remove('column-highlight');
-                }
+                cell.classList.toggle('column-highlight', shouldHighlight);
             }
         }
 
-        if (highlight && getNextAvailableRow(col) !== -1) {
-            const cell = elements.gameBoard.querySelector(`[data-row='0'][data-col='${col}']`);
-            if (cell && !cell.dataset.hoverSoundPlayed) {
+        if (shouldHighlight) {
+            const topCellKey = `0,${col}`;
+            const topCell = renderCache.cellElements.get(topCellKey);
+            if (topCell && !topCell.dataset.hoverSoundPlayed) {
                 playSound(elements.columnHoverSound, 0.2);
-                cell.dataset.hoverSoundPlayed = 'true';
+                topCell.dataset.hoverSoundPlayed = 'true';
                 setTimeout(() => {
-                    delete cell.dataset.hoverSoundPlayed;
+                    delete topCell.dataset.hoverSoundPlayed;
                 }, 200);
             }
         }
@@ -801,7 +1051,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function highlightWinningCells() {
         gameState.winningCells.forEach(([r, c]) => {
-            const cell = elements.gameBoard.querySelector(`[data-row='${r}'][data-col='${c}']`);
+            const cellKey = `${r},${c}`;
+            const cell = renderCache.cellElements.get(cellKey);
             const disc = cell?.querySelector('.disc');
             if (disc) {
                 disc.classList.add('winning-disc');
@@ -836,6 +1087,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         animateDiscDrop(col, row, currentPlayer.color, () => {
             gameState.board[row][col] = currentPlayer.id;
+
+            // Update only the affected cell
+            renderCache.pendingUpdates.add(`${row},${col}`);
+            scheduleBoardUpdate();
+
             updateMoveHistory();
             elements.undoBtn.disabled = false;
 
@@ -874,51 +1130,47 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Optimized disc drop animation with GPU acceleration
     function animateDiscDrop(col, targetRow, color, callback) {
+        const dimensions = getCachedDimensions();
+        if (!dimensions) return;
+
         const fallingLayerRect = elements.fallingDiscLayer.getBoundingClientRect();
         const gameBoardRect = elements.gameBoard.getBoundingClientRect();
         const offsetLeft = gameBoardRect.left - fallingLayerRect.left;
+        const offsetTop = gameBoardRect.top - fallingLayerRect.top;
 
-        const boardComputedStyle = window.getComputedStyle(elements.gameBoard);
-        const boardPaddingLeft = parseFloat(boardComputedStyle.paddingLeft);
-        const boardPaddingRight = parseFloat(boardComputedStyle.paddingRight);
-        let gap = 12;
-        if (window.innerWidth < 480) {
-            gap = 6;
+        const discLeft = offsetLeft + dimensions.paddingLeft + col * (dimensions.cellWidth + dimensions.gap) + dimensions.cellWidth / 2;
+        const discSize = dimensions.discDiameter + 6;
+
+        let fallingDisc;
+        if (renderCache.availableDiscs.length > 0) {
+            fallingDisc = renderCache.availableDiscs.pop();
+            fallingDisc.className = 'falling-disc disc';
+        } else {
+            fallingDisc = document.createElement('div');
+            fallingDisc.className = 'falling-disc disc';
         }
 
-        const boardContentWidth = elements.gameBoard.clientWidth - boardPaddingLeft - boardPaddingRight;
-        const cellWidth = (boardContentWidth - (gameState.settings.cols - 1) * gap) / gameState.settings.cols;
-
-        const discLeft = offsetLeft + boardPaddingLeft + col * (cellWidth + gap) + cellWidth / 2;
-        const discSize = (cellWidth * 0.9) + 6;
-
-        const fallingDisc = document.createElement('div');
-        fallingDisc.className = 'falling-disc disc';
+        // transform and will-change for GPU acceleration
+        fallingDisc.style.willChange = 'transform';
         fallingDisc.style.backgroundColor = color;
         fallingDisc.style.width = `${discSize}px`;
         fallingDisc.style.height = `${discSize}px`;
-        fallingDisc.style.willChange = 'transform';
-
+        fallingDisc.style.position = 'absolute';
         fallingDisc.style.left = `${discLeft}px`;
         fallingDisc.style.top = '0px';
         fallingDisc.style.transform = `translate(-50%, -${discSize * 2}px)`;
+        fallingDisc.style.opacity = '1';
 
         elements.fallingDiscLayer.appendChild(fallingDisc);
 
-        const offsetTop = gameBoardRect.top - fallingLayerRect.top;
-
-        const boardPaddingTop = parseFloat(boardComputedStyle.paddingTop);
-        const boardPaddingBottom = parseFloat(boardComputedStyle.paddingBottom);
-        const boardContentHeight = elements.gameBoard.clientHeight - boardPaddingTop - boardPaddingBottom;
-        const cellHeight = (boardContentHeight - (gameState.settings.rows - 1) * gap) / gameState.settings.rows;
-
-        let targetTop = boardPaddingTop + targetRow * (cellHeight + gap) + gap / 2;
+        let targetTop = dimensions.paddingTop + targetRow * (dimensions.cellHeight + dimensions.gap) + dimensions.gap / 2;
         if (window.innerWidth < 480) {
-            targetTop = boardPaddingTop + targetRow * (cellHeight + gap);
+            targetTop = dimensions.paddingTop + targetRow * (dimensions.cellHeight + dimensions.gap);
         }
 
-        const finalCellCenterTop = offsetTop + boardPaddingTop + targetRow * (cellHeight + gap) + cellHeight / 2;
+        const finalCellCenterTop = offsetTop + dimensions.paddingTop + targetRow * (dimensions.cellHeight + dimensions.gap) + dimensions.cellHeight / 2;
 
         const fallDistance = targetTop + (discSize * 2);
         let fallTime = Math.min(600, Math.max(300, Math.abs(fallDistance) * 1.0));
@@ -933,7 +1185,7 @@ document.addEventListener('DOMContentLoaded', () => {
             fallingDisc.style.transform = `translate(-50%, ${targetTop}px)`;
         });
 
-        const bounceEnabled = document.getElementById('enable-bounce').checked;
+        const bounceEnabled = document.getElementById('enable-bounce')?.checked || false;
 
         setTimeout(() => {
             playSound(elements.discDropSound, 0.6);
@@ -947,22 +1199,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     fallingDisc.style.transform = `translate(-50%, ${targetTop}px)`;
 
                     setTimeout(() => {
-                        fallingDisc.style.boxShadow = 'inset 0 0px 8px rgba(255, 255, 255, 0.5), inset 0px 0px 15px rgba(0, 0, 0, 0.3)';
-                        fallingDisc.style.transition = 'transform 200ms ease-out, opacity 150ms ease-out';
-                        fallingDisc.style.transform = `translate(-50%, calc(${finalCellCenterTop}px - 50% - 0px))`;
-
-                        setTimeout(() => {
-                            fallingDisc.style.opacity = '0';
-                            callback();
-
-                            setTimeout(() => {
-                                fallingDisc.style.willChange = 'auto';
-                                fallingDisc.remove();
-                            }, 150);
-                        }, 200);
+                        finishAnimation();
                     }, 80);
                 }, 120);
             } else {
+                finishAnimation();
+            }
+
+            function finishAnimation() {
                 fallingDisc.style.boxShadow = 'inset 0 0px 8px rgba(255, 255, 255, 0.5), inset 0px 0px 15px rgba(0, 0, 0, 0.3)';
                 fallingDisc.style.transition = 'transform 200ms ease-out, opacity 150ms ease-out';
                 fallingDisc.style.transform = `translate(-50%, calc(${finalCellCenterTop}px - 50% - 0px))`;
@@ -973,7 +1217,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     setTimeout(() => {
                         fallingDisc.style.willChange = 'auto';
-                        fallingDisc.remove();
+                        if (fallingDisc.parentNode) {
+                            // fallingDisc.parentNode.removeChild(fallingDisc);
+                            fallingDisc.remove();
+                        }
+                        renderCache.availableDiscs.push(fallingDisc);
                     }, 150);
                 }, 200);
             }
@@ -983,8 +1231,14 @@ document.addEventListener('DOMContentLoaded', () => {
     function setInteractionState(enabled) {
         gameState.isInputEnabled = enabled;
         elements.gameBoard.style.pointerEvents = enabled ? 'auto' : 'none';
-        document.querySelectorAll('.cell').forEach(cell => {
-            cell.tabIndex = enabled ? 0 : -1;
+
+        // Batch DOM updates
+        requestAnimationFrame(() => {
+            renderCache.cellElements.forEach(cell => {
+                if (cell.dataset.row === '0') {
+                    cell.tabIndex = enabled ? 0 : -1;
+                }
+            });
         });
     }
 
@@ -1062,7 +1316,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function nextTurn() {
         gameState.turnsTaken[gameState.currentPlayerIndex]++;
-
         gameState.currentPlayerIndex = (gameState.currentPlayerIndex + 1) % gameState.players.length;
         gameState.lastHintColumn = -1;
 
@@ -1113,27 +1366,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function showModal() {
         elements.winnerModal.classList.remove('hidden');
-
         elements.playAgainBtn.focus();
-
         document.addEventListener('keydown', handleModalKeydown);
-
         elements.winnerModal.previouslyFocused = document.activeElement;
     }
 
     function hideModal() {
         elements.winnerModal.classList.add('hidden');
-
         document.removeEventListener('keydown', handleModalKeydown);
 
-        document.querySelectorAll('.column-highlight').forEach(el => {
-            el.classList.remove('column-highlight');
-        });
-        document.querySelectorAll('.hint-highlight').forEach(el => {
-            el.classList.remove('hint-highlight');
-        });
-
+        // Batch DOM updates
         requestAnimationFrame(() => {
+            document.querySelectorAll('.column-highlight').forEach(el => {
+                el.classList.remove('column-highlight');
+            });
+            document.querySelectorAll('.hint-highlight').forEach(el => {
+                el.classList.remove('hint-highlight');
+            });
+
             requestAnimationFrame(() => {
                 if (gameState.board && gameState.board.length > 0) {
                     renderBoard();
@@ -1216,7 +1466,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateMoveHistory() {
         const history = gameState.moveHistory.slice(-10);
-        elements.historyList.innerHTML = history.map((move, index) => {
+        const historyHTML = history.map((move, index) => {
             const moveNumber = gameState.moveHistory.length - history.length + index + 1;
             const player = gameState.players[move.player];
             return `<div class="mb-1">
@@ -1225,9 +1475,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>`;
         }).join('');
 
-        requestAnimationFrame(() => {
-            renderBoard();
-        });
+        if (elements.historyList.innerHTML !== historyHTML) {
+            elements.historyList.innerHTML = historyHTML;
+        }
     }
 
     function clearTimers() {
@@ -1399,7 +1649,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (gameState.isPaused) {
             gameState.timers.gamePaused = gameState.timers.gameTimerId !== null;
             gameState.timers.turnPaused = gameState.timers.turnTimerId !== null;
-
             clearTimers();
         } else {
             if (gameState.settings.gameMode === 'timed') {
@@ -1423,7 +1672,16 @@ document.addEventListener('DOMContentLoaded', () => {
         gameState.turnsTaken[lastMove.player]--;
         gameState.currentPlayerIndex = lastMove.player;
         gameState.winningCells = [];
-        renderBoard();
+
+        // Clear and rebuild affected cells
+        renderCache.pendingUpdates.clear();
+        for (let r = 0; r < gameState.settings.rows; r++) {
+            for (let c = 0; c < gameState.settings.cols; c++) {
+                renderCache.pendingUpdates.add(`${r},${c}`);
+            }
+        }
+        scheduleBoardUpdate();
+
         updateMoveHistory();
         elements.undoBtn.disabled = gameState.moveHistory.length === 0;
         updateDisplay();
@@ -1475,9 +1733,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         return;
                     }
                 }
+
                 cleanupGame();
                 gameState = saveData.gameState;
 
+                // Update UI elements
                 elements.boardRowsInput.value = gameState.settings.rows;
                 elements.boardColsInput.value = gameState.settings.cols;
                 elements.winConditionInput.value = gameState.settings.winCondition;
@@ -1493,6 +1753,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 elements.boardVisualLayer.style.backgroundColor = elements.boardColorSelect.value;
 
+                invalidateCache();
                 renderBoard();
                 updateMoveHistory();
                 updateDisplay();
@@ -1505,6 +1766,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     }
                 }
+
                 elements.pauseBtn.textContent = gameState.isPaused ? 'Resume' : 'Pause';
                 elements.undoBtn.disabled = gameState.moveHistory.length === 0;
                 event.target.value = '';
@@ -1518,6 +1780,75 @@ document.addEventListener('DOMContentLoaded', () => {
         reader.readAsText(file);
     }
 
+    function showHint() {
+        if (gameState.gameOver || gameState.isPaused) return;
+
+        const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+        if (currentPlayer && currentPlayer.isAI) return;
+
+        // Clear previous hints
+        document.querySelectorAll('.hint-highlight').forEach(el => {
+            el.classList.remove('hint-highlight');
+        });
+
+        // Simple hint: suggest a random valid move
+        const validCols = getValidMoves();
+        if (validCols.length === 0) return;
+
+        // Try to find a winning move first
+        const aiId = currentPlayer.id;
+        for (const col of validCols) {
+            const row = getNextAvailableRow(col);
+            gameState.board[row][col] = aiId;
+            if (checkWin(row, col)) {
+                gameState.board[row][col] = 0;
+                highlightHintColumn(col);
+                return;
+            }
+            gameState.board[row][col] = 0;
+        }
+
+        // Check for blocking moves
+        const opponentId = gameState.players[(gameState.currentPlayerIndex + 1) % gameState.players.length].id;
+        for (const col of validCols) {
+            const row = getNextAvailableRow(col);
+            gameState.board[row][col] = opponentId;
+            if (checkWin(row, col)) {
+                gameState.board[row][col] = 0;
+                highlightHintColumn(col);
+                return;
+            }
+            gameState.board[row][col] = 0;
+        }
+
+        // Otherwise suggest center or random
+        const centerCol = Math.floor(gameState.settings.cols / 2);
+        const hintCol = validCols.includes(centerCol) ? centerCol : validCols[Math.floor(Math.random() * validCols.length)];
+        highlightHintColumn(hintCol);
+    }
+
+    function highlightHintColumn(col) {
+        gameState.lastHintColumn = col;
+        for (let r = 0; r < gameState.settings.rows; r++) {
+            const cellKey = `${r},${col}`;
+            const cell = renderCache.cellElements.get(cellKey);
+            if (cell) {
+                cell.classList.add('hint-highlight');
+            }
+        }
+
+        // Remove hint after 3 seconds
+        setTimeout(() => {
+            if (gameState.lastHintColumn === col) {
+                document.querySelectorAll('.hint-highlight').forEach(el => {
+                    el.classList.remove('hint-highlight');
+                });
+                gameState.lastHintColumn = -1;
+            }
+        }, 3000);
+    }
+
+    // Handle details expansion animations
     document.querySelectorAll('details').forEach(details => {
         const content = details.querySelector('.details-content');
 
