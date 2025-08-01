@@ -550,10 +550,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const inputContainer = document.createElement('div');
         inputContainer.className = 'flex gap-2 mb-3';
 
-        const label = document.createElement('label');
-        label.className = 'block font-medium mb-1';
-        label.textContent = playerType;
-
         const colorDropdown = createColorDropdown(index, defaultName);
         const nameInput = createNameInput(index, defaultName);
 
@@ -561,7 +557,6 @@ document.addEventListener('DOMContentLoaded', () => {
         inputContainer.appendChild(nameInput);
 
         const container = document.createElement('div');
-        container.appendChild(label);
         container.appendChild(inputContainer);
 
         return container;
