@@ -1164,6 +1164,12 @@ button#close-com-info-btn:hover {
   opacity: 1;
 }
 
+#player-colors-container>div {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
 @keyframes details-show {
   from {
     opacity: 0;
