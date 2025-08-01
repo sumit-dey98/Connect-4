@@ -527,116 +527,135 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Optimized player input management
     function updatePlayerInputs() {
-        elements.playerColorsContainer.innerHTML = '';
         const playerCount = getPlayerCount();
-        for (let i = 0; i < playerCount; i++) {
-            const playerType = getPlayerType(i);
-            const defaultName = playerType === 'Computer' ? 'Computer' : `Player ${i + 1}`;
+        const existingInputs = elements.playerColorsContainer.children.length;
 
-            const label = document.createElement('label');
-            label.className = 'block font-medium mb-1';
-            label.textContent = playerType;
+        // Only rebuild if player count changed
+        if (existingInputs !== playerCount) {
+            elements.playerColorsContainer.innerHTML = '';
 
-            const inputContainer = document.createElement('div');
-            inputContainer.className = 'flex gap-2 mb-3';
-
-            const colorDropdown = document.createElement('div');
-            colorDropdown.className = 'color-dropdown';
-            colorDropdown.id = `player-${i + 1}-color-dropdown`;
-
-            const currentColor = gameState.players && gameState.players[i] ?
-                gameState.players[i].color : DEFAULT_PLAYER_COLORS[i];
-
-            const dropdownButton = document.createElement('div');
-            dropdownButton.className = 'color-dropdown-button';
-            dropdownButton.style.backgroundColor = currentColor;
-            dropdownButton.setAttribute('tabindex', '0');
-            dropdownButton.setAttribute('role', 'button');
-            dropdownButton.setAttribute('aria-label', `Select color for ${getPlayerType(i)}`);
-
-            const dropdownContent = document.createElement('div');
-            dropdownContent.className = 'color-dropdown-content';
-
-            DEFAULT_PLAYER_COLORS.forEach(color => {
-                const colorOption = document.createElement('div');
-                colorOption.className = 'color-option';
-                colorOption.style.backgroundColor = color;
-                if (color === currentColor) {
-                    colorOption.classList.add('selected');
-                }
-
-                colorOption.addEventListener('click', () => {
-                    dropdownButton.style.backgroundColor = color;
-
-                    dropdownContent.querySelectorAll('.color-option').forEach(opt =>
-                        opt.classList.remove('selected'));
-                    colorOption.classList.add('selected');
-
-                    if (gameState.players && gameState.players[i]) {
-                        gameState.players[i].color = color;
-                        renderBoard();
-                        updateDisplay();
-                        updateMoveHistory();
-                    }
-
-                    dropdownContent.classList.remove('show');
-                });
-
-                dropdownContent.appendChild(colorOption);
-            });
-
-            dropdownButton.addEventListener('click', (e) => {
-                e.stopPropagation();
-                document.querySelectorAll('.color-dropdown-content').forEach(content => {
-                    if (content !== dropdownContent) {
-                        content.classList.remove('show');
-                    }
-                });
-                dropdownContent.classList.toggle('show');
-            });
-
-            dropdownButton.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    dropdownButton.click();
-                }
-            });
-
-            colorDropdown.appendChild(dropdownButton);
-            colorDropdown.appendChild(dropdownContent);
-
-            const nameInput = document.createElement('input');
-            nameInput.type = 'text';
-            nameInput.id = `player-${i + 1}-name`;
-            nameInput.className = 'flex-1 p-2 rounded bg-white dark:bg-gray-700 border focus-visible:focus';
-            nameInput.value = gameState.players && gameState.players[i] ?
-                gameState.players[i].name : defaultName;
-            nameInput.placeholder = defaultName;
-
-            colorDropdown.addEventListener('change', (e) => {
-                if (gameState.players && gameState.players[i]) {
-                    gameState.players[i].color = e.target.value;
-                    renderBoard();
-                    updateDisplay();
-                    updateMoveHistory();
-                }
-            });
-
-            nameInput.addEventListener('input', (e) => {
-                if (gameState.players && gameState.players[i]) {
-                    gameState.players[i].name = e.target.value || defaultName;
-                    updateDisplay();
-                    updateMoveHistory();
-                }
-            });
-
-            inputContainer.appendChild(colorDropdown);
-            inputContainer.appendChild(nameInput);
-
-            elements.playerColorsContainer.appendChild(inputContainer);
+            for (let i = 0; i < playerCount; i++) {
+                const playerContainer = createPlayerInput(i);
+                elements.playerColorsContainer.appendChild(playerContainer);
+            }
         }
 
         updateAISettings();
+    }
+
+    function createPlayerInput(index) {
+        const playerType = getPlayerType(index);
+        const defaultName = playerType === 'Computer' ? 'Computer' : `Player ${index + 1}`;
+
+        const inputContainer = document.createElement('div');
+        inputContainer.className = 'flex gap-2 mb-3';
+
+        const label = document.createElement('label');
+        label.className = 'block font-medium mb-1';
+        label.textContent = playerType;
+
+        const colorDropdown = createColorDropdown(index, defaultName);
+        const nameInput = createNameInput(index, defaultName);
+
+        inputContainer.appendChild(colorDropdown);
+        inputContainer.appendChild(nameInput);
+
+        const container = document.createElement('div');
+        container.appendChild(label);
+        container.appendChild(inputContainer);
+
+        return container;
+    }
+
+    function createColorDropdown(index, playerType) {
+        const colorDropdown = document.createElement('div');
+        colorDropdown.className = 'color-dropdown';
+        colorDropdown.id = `player-${index + 1}-color-dropdown`;
+
+        const currentColor = gameState.players && gameState.players[index] ?
+            gameState.players[index].color : DEFAULT_PLAYER_COLORS[index];
+
+        const dropdownButton = document.createElement('div');
+        dropdownButton.className = 'color-dropdown-button';
+        dropdownButton.style.backgroundColor = currentColor;
+        dropdownButton.setAttribute('tabindex', '0');
+        dropdownButton.setAttribute('role', 'button');
+        dropdownButton.setAttribute('aria-label', `Select color for ${playerType}`);
+
+        const dropdownContent = document.createElement('div');
+        dropdownContent.className = 'color-dropdown-content';
+
+        // Pre-create color options
+        const colorOptions = DEFAULT_PLAYER_COLORS.map(color => {
+            const colorOption = document.createElement('div');
+            colorOption.className = 'color-option';
+            colorOption.style.backgroundColor = color;
+            if (color === currentColor) {
+                colorOption.classList.add('selected');
+            }
+
+            colorOption.addEventListener('click', () => {
+                dropdownButton.style.backgroundColor = color;
+                dropdownContent.querySelectorAll('.color-option').forEach(opt =>
+                    opt.classList.remove('selected'));
+                colorOption.classList.add('selected');
+
+                if (gameState.players && gameState.players[index]) {
+                    gameState.players[index].color = color;
+                    scheduleIncrementalBoardUpdate();
+                    updateDisplay();
+                    updateMoveHistory();
+                }
+
+                dropdownContent.classList.remove('show');
+            });
+
+            return colorOption;
+        });
+
+        colorOptions.forEach(option => dropdownContent.appendChild(option));
+
+        dropdownButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            document.querySelectorAll('.color-dropdown-content').forEach(content => {
+                if (content !== dropdownContent) {
+                    content.classList.remove('show');
+                }
+            });
+            dropdownContent.classList.toggle('show');
+        });
+
+        dropdownButton.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                dropdownButton.click();
+            }
+        });
+
+        colorDropdown.appendChild(dropdownButton);
+        colorDropdown.appendChild(dropdownContent);
+
+        return colorDropdown;
+    }
+
+    function createNameInput(index, defaultName) {
+        const nameInput = document.createElement('input');
+        nameInput.type = 'text';
+        nameInput.id = `player-${index + 1}-name`;
+        nameInput.className = 'flex-1 p-2 rounded bg-white dark:bg-gray-700 border focus-visible:focus';
+        nameInput.value = gameState.players && gameState.players[index] ?
+            gameState.players[index].name : defaultName;
+        nameInput.placeholder = defaultName;
+
+        nameInput.addEventListener('input', (e) => {
+            if (gameState.players && gameState.players[index]) {
+                gameState.players[index].name = e.target.value || defaultName;
+                updateDisplay();
+                updateMoveHistory();
+            }
+        });
+
+        return nameInput;
     }
 
     function updateAISettings() {
