@@ -52,8 +52,10 @@ function getEasyAIMove(gameState) {
     const aiId = gameState.players[gameState.currentPlayerIndex].id;
     const opponentId = gameState.players[(gameState.currentPlayerIndex + 1) % gameState.players.length].id;
 
+    // Check for winning move
     for (const col of validCols) {
         const row = getNextAvailableRow(col, gameState);
+        if (row === -1) continue;
         gameState.board[row][col] = aiId;
         if (checkWin(row, col, gameState)) {
             gameState.board[row][col] = 0;
@@ -62,8 +64,10 @@ function getEasyAIMove(gameState) {
         gameState.board[row][col] = 0;
     }
 
+    // Check for blocking move
     for (const col of validCols) {
         const row = getNextAvailableRow(col, gameState);
+        if (row === -1) continue;
         gameState.board[row][col] = opponentId;
         if (checkWin(row, col, gameState)) {
             gameState.board[row][col] = 0;
@@ -77,6 +81,7 @@ function getEasyAIMove(gameState) {
 
     for (const col of validCols) {
         const row = getNextAvailableRow(col, gameState);
+        if (row === -1) continue;
         gameState.board[row][col] = aiId;
 
         let score = evaluateBoardAdvanced(aiId, gameState) * 2;
@@ -105,8 +110,10 @@ function getMediumAIMove(gameState) {
     const aiId = gameState.players[gameState.currentPlayerIndex].id;
     const opponentId = gameState.players[(gameState.currentPlayerIndex + 1) % gameState.players.length].id;
 
+    // Check for winning move
     for (const col of validCols) {
         const row = getNextAvailableRow(col, gameState);
+        if (row === -1) continue;
         gameState.board[row][col] = aiId;
         if (checkWin(row, col, gameState)) {
             gameState.board[row][col] = 0;
@@ -115,8 +122,10 @@ function getMediumAIMove(gameState) {
         gameState.board[row][col] = 0;
     }
 
+    // Check for blocking move
     for (const col of validCols) {
         const row = getNextAvailableRow(col, gameState);
+        if (row === -1) continue;
         gameState.board[row][col] = opponentId;
         if (checkWin(row, col, gameState)) {
             gameState.board[row][col] = 0;
@@ -133,6 +142,7 @@ function getMediumAIMove(gameState) {
 
     for (const col of validCols) {
         const row = getNextAvailableRow(col, gameState);
+        if (row === -1) continue;
         gameState.board[row][col] = aiId;
 
         let score = evaluateBoardAdvanced(aiId, gameState) * 2;
@@ -172,7 +182,7 @@ function getHardAIMove(gameState) {
     let bestScore = -Infinity;
     let bestCol = orderedMoves[0];
 
-    const maxDepth = Math.min(5, 42 - getCurrentMoveCount(gameState));
+    const maxDepth = Math.min(6, 42 - getCurrentMoveCount(gameState));
 
     for (const col of orderedMoves) {
         const row = getNextAvailableRow(col, gameState);
@@ -180,9 +190,15 @@ function getHardAIMove(gameState) {
 
         gameState.board[row][col] = aiId;
 
-        const score = minimaxAdvanced(maxDepth, false, -Infinity, Infinity,
-            gameState.currentPlayerIndex, col, gameState);
+        // Switch to next player for minimax
+        const nextPlayerIndex = (gameState.currentPlayerIndex + 1) % gameState.players.length;
+        const originalPlayerIndex = gameState.currentPlayerIndex;
+        gameState.currentPlayerIndex = nextPlayerIndex;
 
+        const score = minimaxAdvanced(maxDepth - 1, false, -Infinity, Infinity,
+            originalPlayerIndex, col, gameState);
+
+        gameState.currentPlayerIndex = originalPlayerIndex;
         gameState.board[row][col] = 0;
 
         if (score > bestScore) {
@@ -202,18 +218,28 @@ function getVeryHardAIMove(gameState) {
     const aiId = gameState.players[gameState.currentPlayerIndex].id;
     const opponentId = gameState.players[(gameState.currentPlayerIndex + 1) % gameState.players.length].id;
 
+    // Always check for immediate win first
     const immediateWin = findImmediateWin(aiId, validCols, gameState);
     if (immediateWin !== -1) return immediateWin;
 
+    // Always block opponent's immediate win
     const blockWin = findImmediateWin(opponentId, validCols, gameState);
     if (blockWin !== -1) return blockWin;
+
+    // Check for double threats (fork opportunities)
+    const createFork = findForkOpportunity(aiId, validCols, gameState);
+    if (createFork !== -1) return createFork;
+
+    // Block opponent's fork opportunities
+    const blockFork = findForkOpportunity(opponentId, validCols, gameState);
+    if (blockFork !== -1) return blockFork;
 
     const orderedMoves = orderMoves(validCols, aiId, -1, gameState);
 
     let bestScore = -Infinity;
     let bestCol = orderedMoves[0];
 
-    const maxDepth = Math.min(5, 42 - getCurrentMoveCount(gameState));
+    const maxDepth = Math.min(8, 42 - getCurrentMoveCount(gameState));
 
     for (const col of orderedMoves) {
         const row = getNextAvailableRow(col, gameState);
@@ -221,9 +247,15 @@ function getVeryHardAIMove(gameState) {
 
         gameState.board[row][col] = aiId;
 
-        const score = minimaxAdvanced(maxDepth, false, -Infinity, Infinity,
-            gameState.currentPlayerIndex, col, gameState);
+        // Switch to next player for minimax
+        const nextPlayerIndex = (gameState.currentPlayerIndex + 1) % gameState.players.length;
+        const originalPlayerIndex = gameState.currentPlayerIndex;
+        gameState.currentPlayerIndex = nextPlayerIndex;
 
+        const score = minimaxAdvanced(maxDepth - 1, false, -Infinity, Infinity,
+            originalPlayerIndex, col, gameState);
+
+        gameState.currentPlayerIndex = originalPlayerIndex;
         gameState.board[row][col] = 0;
 
         if (score > bestScore) {
@@ -240,9 +272,12 @@ function minimaxAdvanced(depth, isMaximizing, alpha, beta, originalAI, lastMove,
 
     if (depth === 0 || winnerInfo.isTerminal) {
         if (winnerInfo.isTerminal) {
-            if (winnerInfo.winner === null) return 0;
-            if (winnerInfo.winner === originalAI) return 100000 + depth;
-            return -100000 - depth;
+            if (winnerInfo.winner === null) return 0; // Draw
+            // player ID comparison
+            if (winnerInfo.winner === gameState.players[originalAI].id) {
+                return 100000 + depth; // AI wins, prefer shorter paths
+            }
+            return -100000 - depth; // AI loses, prefer longer paths
         }
         return evaluateBoardAdvanced(gameState.players[originalAI].id, gameState);
     }
@@ -256,13 +291,15 @@ function minimaxAdvanced(depth, isMaximizing, alpha, beta, originalAI, lastMove,
         let maxScore = -Infinity;
         for (const col of orderedCols) {
             const row = getNextAvailableRow(col, gameState);
+            if (row === -1) continue;
+
             gameState.board[row][col] = currentPlayerId;
 
             const nextPlayer = (gameState.currentPlayerIndex + 1) % gameState.players.length;
             const originalPlayer = gameState.currentPlayerIndex;
             gameState.currentPlayerIndex = nextPlayer;
 
-            const score = minimaxAdvanced(depth - 1, originalAI === nextPlayer,
+            const score = minimaxAdvanced(depth - 1, originalAI !== nextPlayer,
                 alpha, beta, originalAI, col, gameState);
 
             gameState.currentPlayerIndex = originalPlayer;
@@ -270,20 +307,22 @@ function minimaxAdvanced(depth, isMaximizing, alpha, beta, originalAI, lastMove,
 
             maxScore = Math.max(maxScore, score);
             alpha = Math.max(alpha, score);
-            if (beta <= alpha) break;
+            if (beta <= alpha) break; // Alpha-beta pruning
         }
         return maxScore;
     } else {
         let minScore = Infinity;
         for (const col of orderedCols) {
             const row = getNextAvailableRow(col, gameState);
+            if (row === -1) continue;
+
             gameState.board[row][col] = currentPlayerId;
 
             const nextPlayer = (gameState.currentPlayerIndex + 1) % gameState.players.length;
             const originalPlayer = gameState.currentPlayerIndex;
             gameState.currentPlayerIndex = nextPlayer;
 
-            const score = minimaxAdvanced(depth - 1, originalAI === nextPlayer,
+            const score = minimaxAdvanced(depth - 1, originalAI !== nextPlayer,
                 alpha, beta, originalAI, col, gameState);
 
             gameState.currentPlayerIndex = originalPlayer;
@@ -291,7 +330,7 @@ function minimaxAdvanced(depth, isMaximizing, alpha, beta, originalAI, lastMove,
 
             minScore = Math.min(minScore, score);
             beta = Math.min(beta, score);
-            if (beta <= alpha) break;
+            if (beta <= alpha) break; // Alpha-beta pruning
         }
         return minScore;
     }
@@ -305,19 +344,29 @@ function evaluateBoardAdvanced(aiId, gameState) {
     let score = 0;
     const rows = gameState.settings.rows;
     const cols = gameState.settings.cols;
-    const winCondition = gameState.settings.winCondition;
 
+    // Center column preference
     const centerCol = Math.floor(cols / 2);
     for (let r = 0; r < rows; r++) {
         if (gameState.board[r][centerCol] === aiId) {
-            score += 4 + (rows - r);
+            score += 6 + (rows - r);
         }
     }
 
+    // Evaluate all possible winning lines
     score += evaluateAllWindows(aiId, gameState);
+
+    // Connectivity bonus
     score += evaluateConnectivity(aiId, gameState);
-    score -= evaluateIsolation(aiId, gameState) * 2;
+
+    // Penalize isolated pieces
+    score -= evaluateIsolation(aiId, gameState) * 3;
+
+    // Positional advantages
     score += evaluatePositionalAdvantages(aiId, gameState);
+
+    // Height advantage (lower pieces are more stable)
+    score += evaluateHeightAdvantage(aiId, gameState);
 
     return score;
 }
@@ -341,18 +390,21 @@ function evaluateWindowAdvanced(window, aiId) {
         }
     }
 
+    // Can't win if opponent has pieces in this window
     if (aiCount > 0 && opponentCount > 0) return 0;
 
     const winCondition = 4; // Default Connect 4
 
+    // AI scoring
     if (aiCount === winCondition - 1 && emptyCount === 1) return 1000;
     if (aiCount === winCondition - 2 && emptyCount === 2) return 100;
     if (aiCount === winCondition - 3 && emptyCount === 3) return 10;
-    if (aiCount > 0 && emptyCount === winCondition - aiCount) return aiCount * 2;
+    if (aiCount > 0 && emptyCount === winCondition - aiCount) return aiCount * 3;
 
-    if (opponentCount === winCondition - 1 && emptyCount === 1) return -800;
-    if (opponentCount === winCondition - 2 && emptyCount === 2) return -80;
-    if (opponentCount === winCondition - 3 && emptyCount === 3) return -8;
+    // Opponent threat scoring (aggressive blocking)
+    if (opponentCount === winCondition - 1 && emptyCount === 1) return -900;
+    if (opponentCount === winCondition - 2 && emptyCount === 2) return -90;
+    if (opponentCount === winCondition - 3 && emptyCount === 3) return -9;
 
     return 0;
 }
@@ -367,6 +419,7 @@ function evaluateAllWindows(aiId, gameState) {
     const cols = gameState.settings.cols;
     const winCondition = gameState.settings.winCondition;
 
+    // Horizontal windows
     for (let r = 0; r < rows; r++) {
         for (let c = 0; c <= cols - winCondition; c++) {
             const window = [];
@@ -377,6 +430,7 @@ function evaluateAllWindows(aiId, gameState) {
         }
     }
 
+    // Vertical windows
     for (let c = 0; c < cols; c++) {
         for (let r = 0; r <= rows - winCondition; r++) {
             const window = [];
@@ -387,6 +441,7 @@ function evaluateAllWindows(aiId, gameState) {
         }
     }
 
+    // Diagonal windows
     if (gameState.settings.enableDiagonal) {
         for (let r = 0; r <= rows - winCondition; r++) {
             for (let c = 0; c <= cols - winCondition; c++) {
@@ -422,7 +477,7 @@ function evaluateConnectivity(aiId, gameState) {
                     const nc = c + dc;
                     if (nr >= 0 && nr < rows && nc >= 0 && nc < cols &&
                         gameState.board[nr][nc] === aiId) {
-                        score += 1;
+                        score += 2;
                     }
                 }
             }
@@ -469,12 +524,41 @@ function evaluatePositionalAdvantages(aiId, gameState) {
     for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
             if (gameState.board[r][c] === aiId) {
-                score += (rows - r);
+                // Height advantage (lower is better)
+                score += (rows - r) * 2;
 
+                // Stability bonus (has support below)
                 if (r < rows - 1 && gameState.board[r + 1][c] !== 0) {
-                    score += 2;
+                    score += 3;
                 }
             }
+        }
+    }
+
+    return score;
+}
+
+function evaluateHeightAdvantage(aiId, gameState) {
+    let score = 0;
+    const rows = gameState.settings.rows;
+    const cols = gameState.settings.cols;
+
+    for (let c = 0; c < cols; c++) {
+        let aiPieces = 0;
+        let opponentPieces = 0;
+
+        for (let r = rows - 1; r >= 0; r--) {
+            if (gameState.board[r][c] === aiId) {
+                aiPieces++;
+                score += (rows - r);
+            } else if (gameState.board[r][c] !== 0) {
+                opponentPieces++;
+            }
+        }
+
+        // Bonus for controlling columns
+        if (aiPieces > opponentPieces) {
+            score += 5;
         }
     }
 
@@ -484,6 +568,8 @@ function evaluatePositionalAdvantages(aiId, gameState) {
 function findImmediateWin(playerId, validCols, gameState) {
     for (const col of validCols) {
         const row = getNextAvailableRow(col, gameState);
+        if (row === -1) continue;
+
         gameState.board[row][col] = playerId;
         if (checkWin(row, col, gameState)) {
             gameState.board[row][col] = 0;
@@ -497,6 +583,8 @@ function findImmediateWin(playerId, validCols, gameState) {
 function findForkOpportunity(playerId, validCols, gameState) {
     for (const col of validCols) {
         const row = getNextAvailableRow(col, gameState);
+        if (row === -1) continue;
+
         gameState.board[row][col] = playerId;
 
         let threats = 0;
@@ -526,14 +614,17 @@ function orderMoves(validCols, playerId, lastMove, gameState) {
     return validCols.sort((a, b) => {
         let scoreA = 0, scoreB = 0;
 
-        scoreA += Math.max(0, 3 - Math.abs(a - center));
-        scoreB += Math.max(0, 3 - Math.abs(b - center));
+        // Center preference
+        scoreA += Math.max(0, 4 - Math.abs(a - center));
+        scoreB += Math.max(0, 4 - Math.abs(b - center));
 
+        // Proximity to last move
         if (lastMove !== -1) {
-            scoreA += Math.max(0, 2 - Math.abs(a - lastMove));
-            scoreB += Math.max(0, 2 - Math.abs(b - lastMove));
+            scoreA += Math.max(0, 3 - Math.abs(a - lastMove));
+            scoreB += Math.max(0, 3 - Math.abs(b - lastMove));
         }
 
+        // Quick position evaluation
         const rowA = getNextAvailableRow(a, gameState);
         const rowB = getNextAvailableRow(b, gameState);
 
@@ -557,14 +648,51 @@ function quickEvaluatePosition(row, col, playerId, gameState) {
     let score = 0;
     const winCondition = gameState.settings.winCondition;
 
+    // Check horizontal potential
     let left = 0, right = 0;
     for (let c = col - 1; c >= 0 && gameState.board[row][c] === playerId; c--) left++;
     for (let c = col + 1; c < gameState.settings.cols && gameState.board[row][c] === playerId; c++) right++;
-    if (left + right + 1 >= winCondition) score += 50;
+    if (left + right + 1 >= winCondition) score += 100;
+    else score += (left + right) * 10;
 
+    // Check vertical potential
     let down = 0;
     for (let r = row + 1; r < gameState.settings.rows && gameState.board[r][col] === playerId; r++) down++;
-    if (down + 1 >= winCondition) score += 50;
+    if (down + 1 >= winCondition) score += 100;
+    else score += down * 10;
+
+    // Check diagonal potential if enabled
+    if (gameState.settings.enableDiagonal) {
+        const directions = [[1, 1], [1, -1]];
+        for (const [dr, dc] of directions) {
+            let count1 = 0, count2 = 0;
+
+            // Count in one direction
+            for (let i = 1; i < winCondition; i++) {
+                const nr = row + dr * i;
+                const nc = col + dc * i;
+                if (nr >= 0 && nr < gameState.settings.rows &&
+                    nc >= 0 && nc < gameState.settings.cols &&
+                    gameState.board[nr][nc] === playerId) {
+                    count1++;
+                } else break;
+            }
+
+            // Count in opposite direction
+            for (let i = 1; i < winCondition; i++) {
+                const nr = row - dr * i;
+                const nc = col - dc * i;
+                if (nr >= 0 && nr < gameState.settings.rows &&
+                    nc >= 0 && nc < gameState.settings.cols &&
+                    gameState.board[nr][nc] === playerId) {
+                    count2++;
+                } else break;
+            }
+
+            if (count1 + count2 + 1 >= winCondition) score += 100;
+            else score += (count1 + count2) * 10;
+        }
+    }
 
     return score;
 }
@@ -580,50 +708,70 @@ function getCurrentMoveCount(gameState) {
 }
 
 function checkForTerminalState(gameState) {
+    // Check for wins
     for (let r = 0; r < gameState.settings.rows; r++) {
         for (let c = 0; c < gameState.settings.cols; c++) {
             if (gameState.board[r][c] !== 0) {
                 const winner = checkWin(r, c, gameState);
                 if (winner) {
-                    return { isTerminal: true, winner: winner.id - 1 };
+                    return { isTerminal: true, winner: winner.id };
                 }
             }
         }
     }
+
+    // Check for draw
     if (isBoardFull(gameState)) {
         return { isTerminal: true, winner: null };
     }
+
     return { isTerminal: false, winner: null };
 }
 
 function checkWin(r, c, gameState) {
     const playerId = gameState.board[r][c];
+    if (playerId === 0) return null;
+
     const winLength = gameState.settings.winCondition;
     const directions = [
-        [0, 1],
-        [1, 0],
-        [1, 1],
-        [1, -1]
+        [0, 1],   // horizontal
+        [1, 0],   // vertical
+        [1, 1],   // diagonal /
+        [1, -1]   // diagonal \
     ];
 
     for (const [dr, dc] of directions) {
         if (!gameState.settings.enableDiagonal && (dr === 1 && dc !== 0)) continue;
-        const cells = [];
-        for (let dir = -1; dir <= 1; dir += 2) {
-            for (let i = 1; i < winLength; i++) {
-                const nr = r + dr * i * dir;
-                const nc = c + dc * i * dir;
-                if (nr >= 0 && nr < gameState.settings.rows &&
-                    nc >= 0 && nc < gameState.settings.cols &&
-                    gameState.board[nr][nc] === playerId) {
-                    cells.push([nr, nc]);
-                } else {
-                    break;
-                }
+
+        let count = 1; // Count the current piece
+
+        // Count in positive direction
+        for (let i = 1; i < winLength; i++) {
+            const nr = r + dr * i;
+            const nc = c + dc * i;
+            if (nr >= 0 && nr < gameState.settings.rows &&
+                nc >= 0 && nc < gameState.settings.cols &&
+                gameState.board[nr][nc] === playerId) {
+                count++;
+            } else {
+                break;
             }
         }
-        cells.push([r, c]);
-        if (cells.length >= winLength) {
+
+        // Count in negative direction
+        for (let i = 1; i < winLength; i++) {
+            const nr = r - dr * i;
+            const nc = c - dc * i;
+            if (nr >= 0 && nr < gameState.settings.rows &&
+                nc >= 0 && nc < gameState.settings.cols &&
+                gameState.board[nr][nc] === playerId) {
+                count++;
+            } else {
+                break;
+            }
+        }
+
+        if (count >= winLength) {
             return gameState.players[playerId - 1];
         }
     }
