@@ -1174,7 +1174,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         fallingDisc.style.transition = `transform ${fallTime}ms cubic-bezier(0.25, 0.46, 0.45, 0.94)`;
-        fallingDisc.style.boxShadow = '0 8px 20px rgba(0,0,0,0.5), inset 0 0px 8px rgba(255, 255, 255, 0.3)';
+        // fallingDisc.style.boxShadow = '0 8px 20px rgba(0,0,0,0.5), inset 0 0px 8px rgba(255, 255, 255, 0.3)';
 
         requestAnimationFrame(() => {
             fallingDisc.style.transform = `translate(-50%, ${targetTop}px)`;
@@ -1206,7 +1206,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (fallingDisc.dataset.finishing) return;
                 fallingDisc.dataset.finishing = 'true';
 
-                fallingDisc.style.boxShadow = 'inset 0 0px 8px rgba(255, 255, 255, 0.5), inset 0px 0px 15px rgba(0, 0, 0, 0.3)';
+                // fallingDisc.style.boxShadow = 'inset 0 0px 8px rgba(255, 255, 255, 0.5), inset 0px 0px 15px rgba(0, 0, 0, 0.3)';
                 fallingDisc.style.transition = 'transform 200ms ease-out, opacity 150ms ease-out';
                 fallingDisc.style.transform = `translate(-50%, calc(${finalCellCenterTop}px - 50% - 0px))`;
 
