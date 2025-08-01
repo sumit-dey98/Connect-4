@@ -548,7 +548,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const defaultName = playerType === 'Computer' ? 'Computer' : `Player ${index + 1}`;
 
         const inputContainer = document.createElement('div');
-        inputContainer.className = 'flex gap-2 mb-3';
 
         const colorDropdown = createColorDropdown(index, defaultName);
         const nameInput = createNameInput(index, defaultName);
@@ -556,10 +555,7 @@ document.addEventListener('DOMContentLoaded', () => {
         inputContainer.appendChild(colorDropdown);
         inputContainer.appendChild(nameInput);
 
-        const container = document.createElement('div');
-        container.appendChild(inputContainer);
-
-        return container;
+        return inputContainer;
     }
 
     function createColorDropdown(index, playerType) {

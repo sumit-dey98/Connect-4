@@ -1308,8 +1308,8 @@ button#close-com-info-btn:hover {
     display: grid;
     grid-template-columns: repeat(6, 1fr);
     grid-template-areas: "color-dropdown name name name name name";
-    /*     gap: 1rem;
-    margin-bottom: 0; */
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
   }
 
   #player-colors-container .color-dropdown {
