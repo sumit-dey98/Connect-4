@@ -218,28 +218,29 @@ function getVeryHardAIMove(gameState) {
     const aiId = gameState.players[gameState.currentPlayerIndex].id;
     const opponentId = gameState.players[(gameState.currentPlayerIndex + 1) % gameState.players.length].id;
 
-    // Always check for immediate win first
     const immediateWin = findImmediateWin(aiId, validCols, gameState);
     if (immediateWin !== -1) return immediateWin;
 
-    // Always block opponent's immediate win
     const blockWin = findImmediateWin(opponentId, validCols, gameState);
     if (blockWin !== -1) return blockWin;
 
-    // Check for double threats (fork opportunities)
-    const createFork = findForkOpportunity(aiId, validCols, gameState);
-    if (createFork !== -1) return createFork;
+    // Only check forks if not too early or too late in game
+    const moveCount = getCurrentMoveCount(gameState);
+    if (moveCount > 6 && moveCount < 30) {
+        const createFork = findForkOpportunity(aiId, validCols, gameState);
+        if (createFork !== -1) return createFork;
 
-    // Block opponent's fork opportunities
-    const blockFork = findForkOpportunity(opponentId, validCols, gameState);
-    if (blockFork !== -1) return blockFork;
+        const blockFork = findForkOpportunity(opponentId, validCols, gameState);
+        if (blockFork !== -1) return blockFork;
+    }
 
     const orderedMoves = orderMoves(validCols, aiId, -1, gameState);
 
     let bestScore = -Infinity;
     let bestCol = orderedMoves[0];
 
-    const maxDepth = Math.min(8, 42 - getCurrentMoveCount(gameState));
+    // Reduced depth from 8 to 6 for better performance
+    const maxDepth = Math.min(6, 42 - getCurrentMoveCount(gameState));
 
     for (const col of orderedMoves) {
         const row = getNextAvailableRow(col, gameState);
@@ -247,7 +248,6 @@ function getVeryHardAIMove(gameState) {
 
         gameState.board[row][col] = aiId;
 
-        // Switch to next player for minimax
         const nextPlayerIndex = (gameState.currentPlayerIndex + 1) % gameState.players.length;
         const originalPlayerIndex = gameState.currentPlayerIndex;
         gameState.currentPlayerIndex = nextPlayerIndex;
