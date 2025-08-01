@@ -847,6 +847,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (gameState.settings.gameMode === 'timed') {
             startGameTimer();
+            // 
+            if (gameState.settings.turnTimeLimit > 0) {
+                startTurnTimer();
+            }
         }
         currentFocusedColumn = Math.floor(gameState.settings.cols / 2);
         updateColumnHighlight();
@@ -1207,6 +1211,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             function finishAnimation() {
+                // Mark this disc as finishing to prevent duplicate cleanup
+                if (fallingDisc.dataset.finishing) return;
+                fallingDisc.dataset.finishing = 'true';
+
                 fallingDisc.style.boxShadow = 'inset 0 0px 8px rgba(255, 255, 255, 0.5), inset 0px 0px 15px rgba(0, 0, 0, 0.3)';
                 fallingDisc.style.transition = 'transform 200ms ease-out, opacity 150ms ease-out';
                 fallingDisc.style.transform = `translate(-50%, calc(${finalCellCenterTop}px - 50% - 0px))`;
@@ -1216,12 +1224,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     callback();
 
                     setTimeout(() => {
-                        fallingDisc.style.willChange = 'auto';
-                        if (fallingDisc.parentNode) {
-                            // fallingDisc.parentNode.removeChild(fallingDisc);
-                            fallingDisc.remove();
+                        // Final cleanup with safety checks
+                        if (fallingDisc && fallingDisc.parentNode && fallingDisc.parentNode === elements.fallingDiscLayer) {
+                            fallingDisc.style.willChange = 'auto';
+                            elements.fallingDiscLayer.removeChild(fallingDisc);
+                            // Reset disc state before returning to pool
+                            fallingDisc.className = 'disc';
+                            fallingDisc.style.cssText = '';
+                            delete fallingDisc.dataset.finishing;
+                            renderCache.availableDiscs.push(fallingDisc);
                         }
-                        renderCache.availableDiscs.push(fallingDisc);
                     }, 150);
                 }, 200);
             }
